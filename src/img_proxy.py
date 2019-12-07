@@ -35,13 +35,17 @@ class ImgProxy:
 def main():
     rospy.init_node('image_proxy')
     imgProxy = ImgProxy()
-    imgProxy.getImage()
-
-    img = skimage.transform.resize(imgProxy.image, (90, 90))
-
-    plt.imshow(img)
-    plt.colorbar()
-    plt.show()
+    while True:
+        obs = imgProxy.getImage()
+        obs = obs[240 - 100:240 + 100, 320 - 100:320 + 100]
+        obs[np.isnan(obs)] = 0
+        obs = -obs
+        obs -= obs.min()
+        obs = skimage.transform.resize(obs, (90, 90))
+        obs = obs[45-5:45+5, 45-5:45+5]
+        plt.imshow(obs)
+        plt.colorbar()
+        plt.show()
 
 
 if __name__ == '__main__':

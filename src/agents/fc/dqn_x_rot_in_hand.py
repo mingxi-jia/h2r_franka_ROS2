@@ -139,7 +139,7 @@ class DQNXRotInHand(DQNXRot):
         rot = self.rotations[rot_idx]
         pixels = action_idx[:, 1:]
         x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
-        y = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
+        y = ((90-pixels[:, 0].float()) * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
 
         actions = torch.cat((x, y, rot), dim=1)
         action_idx = torch.cat((pixels, rot_idx), dim=1)

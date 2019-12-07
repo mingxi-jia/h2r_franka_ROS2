@@ -83,3 +83,6 @@ class Gripper:
     cmd.rSP = speed
     self.gripperPub.publish(cmd)
     rospy.sleep(0.5)
+
+  def isClosed(self):
+    return self.status.gPR > 250

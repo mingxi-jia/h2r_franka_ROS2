@@ -13,17 +13,17 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 
 sys.path.append('./')
 sys.path.append('..')
-from agents.models_x import *
-from agents.fc.dqn_x_rot_in_hand import DQNXRotInHand
-from agents.fc.policy_x_rot_in_hand import PolicyRotInHand
-from agents.fc.dqn_x_rot_in_hand_anneal import DQNXRotInHandAnneal
-from agents.fc.dqn_x_rot_in_hand_margin import DQNXRotInHandMargin
+from src.agents.models_x import *
+from src.agents.fc.dqn_x_rot_in_hand import DQNXRotInHand
+from src.agents.fc.policy_x_rot_in_hand import PolicyRotInHand
+from src.agents.fc.dqn_x_rot_in_hand_anneal import DQNXRotInHandAnneal
+from src.agents.fc.dqn_x_rot_in_hand_margin import DQNXRotInHandMargin
 
-from utils.parameters_x import *
+from src.utils.parameters_x import *
 
 import rospy
-from img_proxy import ImgProxy
-from env import Env
+from src.img_proxy import ImgProxy
+from src.env import Env
 
 Transition = collections.namedtuple('Transition', 'state obs action reward next_state next_obs done')
 ExpertTransition = collections.namedtuple('ExpertTransition', 'state obs action reward next_state next_obs done expert')
@@ -53,7 +53,7 @@ def creatAgent():
 
 if __name__ == '__main__':
     rospy.init_node('image_proxy')
-    ws_center = [-0.533, 0.04, 0.09]
+    ws_center = [-0.5257, -0.0098, 0.1]
     workspace = np.asarray([[ws_center[0]-0.15, ws_center[0]+0.15],
                             [ws_center[1]-0.15, ws_center[1]+0.15],
                             [0, 0.50]])
@@ -66,10 +66,18 @@ if __name__ == '__main__':
     agent.initHis(1)
 
     env = Env()
-    obs = env.getObs()
-    state = torch.zeros(1)
-    q_map, action_idx, action = agent.getEGreedyActions(state, obs, 0, 0)
+    rospy.sleep(1)
     env.ur5.moveToHome()
-    env.ur5.pick(action[0, 0].item(), action[0, 1].item(), 0.1, action[0, 2].item())
-    print(1)
+    while True:
+        obs = env.getObs()
+        state = torch.tensor([env.getGripperClosed()], dtype=torch.float32)
+        q_map, action_idx, action = agent.getEGreedyActions(state, obs, 0, 0)
+        pixels = action_idx[:, :2]
+        patch = agent.getImgPatch(obs, pixels)
+        if state.item() == 0:
+            env.ur5.pick(action[0, 0].item(), action[0, 1].item(), 0.1, action[0, 2].item())
+        else:
+            safe_height = env.getSafeHeight(action_idx[0, 0].item(), action_idx[0, 1].item())
+            env.ur5.place(action[0, 0].item(), action[0, 1].item(), 0.095+safe_height, action[0, 2].item())
 
+        agent.updateHis(patch, -action[:, 2], torch.tensor([env.getGripperClosed()], dtype=torch.float32), None, torch.zeros(1))
