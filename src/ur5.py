@@ -10,7 +10,6 @@ class UR5:
         self.gripper.reset()
         self.gripper.activate()
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
-        self.ws_center = [-0.5257, -0.0098, 0.09]
         self.home_joint_values = [-0.03911955, -2.14088709, 2.0448904, -1.4727586, -1.55525238, -1.61120922]
 
         self.joint_names_speedj = ['shoulder_pan_joint', 'shoulder_lift_joint',
@@ -43,7 +42,7 @@ class UR5:
                 break
 
     def moveToJ(self, joint_pos):
-        s = 'movej({},v=0.3)'.format(joint_pos)
+        s = 'movej({})'.format(joint_pos)
         rospy.sleep(0.5)
         self.pub.publish(s)
         self.waitUntilNotMoving()
@@ -52,7 +51,7 @@ class UR5:
     def moveToP(self, x, y, z, rx, ry, rz):
         rz = -np.pi/2 + rz
         pose = [x, y, z, rx, ry, rz]
-        s = 'movel(p{},v=0.1)'.format(pose)
+        s = 'movel(p{})'.format(pose)
         rospy.sleep(0.5)
         self.pub.publish(s)
         self.waitUntilNotMoving()
@@ -63,7 +62,7 @@ class UR5:
     def pick(self, x, y, z, r):
         self.moveToP(x, y, z+self.pick_offset, 0, 0, r)
         self.moveToP(x, y, z, 0, 0, r)
-        self.gripper.closeGripper(force=50)
+        self.gripper.closeGripper(force=5)
         self.moveToP(x, y, z+self.pick_offset, 0, 0, r)
         self.moveToHome()
 

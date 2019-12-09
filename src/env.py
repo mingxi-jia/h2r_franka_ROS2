@@ -11,6 +11,7 @@ class Env:
         self.ur5 = UR5()
         self.img_proxy = ImgProxy()
         self.heightmap = np.zeros((90, 90))
+        self.ws_center = [-0.5257, -0.0098, 0.09]
 
     def getObs(self):
         obs = self.img_proxy.getImage()
@@ -22,8 +23,12 @@ class Env:
         obs -= obs.min()
         obs = skimage.transform.resize(obs, (90, 90))
         obs = scipy.ndimage.rotate(obs, 90)
-        self.heightmap = obs
+        self.heightmap = obs.copy()
         # obs = obs.T
+        b = np.linspace(0.01, 0, 90).reshape(1, 90).repeat(90, axis=0)
+        obs -= b
+        obs *= 0.8
+        obs[obs < 0.01] = 0
         obs = obs.reshape(1, 1, 90, 90)
         return torch.tensor(obs).to(torch.float32)
 
@@ -31,4 +36,4 @@ class Env:
         return self.ur5.gripper.isClosed()
 
     def getSafeHeight(self, x, y):
-        return self.heightmap[x-5:x+5, y-5:y+5].max()
+        return self.heightmap[max(x-5, 0):min(x+5, 90), max(y-5, 0):min(y+5, 90)].max()

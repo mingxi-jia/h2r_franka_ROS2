@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     model = 'dfpyramid'
     agent = creatAgent()
-    pre = '/home/dian/Downloads/snapshot_block_stacking'
+    pre = '/home/dian/Downloads/snapshot_house_building_3'
     agent.loadModel(pre)
     agent.eval()
     agent.initHis(1)
@@ -70,6 +70,9 @@ if __name__ == '__main__':
     env.ur5.moveToHome()
     while True:
         obs = env.getObs()
+        plt.imshow(obs[0, 0])
+        plt.colorbar()
+        plt.show()
         state = torch.tensor([env.getGripperClosed()], dtype=torch.float32)
         q_map, action_idx, action = agent.getEGreedyActions(state, obs, 0, 0)
         pixels = action_idx[:, :2]
@@ -80,4 +83,4 @@ if __name__ == '__main__':
             safe_height = env.getSafeHeight(action_idx[0, 0].item(), action_idx[0, 1].item())
             env.ur5.place(action[0, 0].item(), action[0, 1].item(), 0.095+safe_height, action[0, 2].item())
 
-        agent.updateHis(patch, -action[:, 2], torch.tensor([env.getGripperClosed()], dtype=torch.float32), None, torch.zeros(1))
+        agent.updateHis(patch, action[:, 2], torch.tensor([env.getGripperClosed()], dtype=torch.float32), None, torch.zeros(1))
