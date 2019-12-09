@@ -66,21 +66,17 @@ if __name__ == '__main__':
     agent.initHis(1)
 
     env = Env()
-    rospy.sleep(1)
+    rospy.sleep(2)
     env.ur5.moveToHome()
     while True:
         obs = env.getObs()
         plt.imshow(obs[0, 0])
         plt.colorbar()
         plt.show()
-        state = torch.tensor([env.getGripperClosed()], dtype=torch.float32)
+        state = torch.tensor([env.ur5.holding_state], dtype=torch.float32)
         q_map, action_idx, action = agent.getEGreedyActions(state, obs, 0, 0)
         pixels = action_idx[:, :2]
         patch = agent.getImgPatch(obs, pixels)
-        if state.item() == 0:
-            env.ur5.pick(action[0, 0].item(), action[0, 1].item(), 0.1, action[0, 2].item())
-        else:
-            safe_height = env.getSafeHeight(action_idx[0, 0].item(), action_idx[0, 1].item())
-            env.ur5.place(action[0, 0].item(), action[0, 1].item(), 0.095+safe_height, action[0, 2].item())
-
-        agent.updateHis(patch, action[:, 2], torch.tensor([env.getGripperClosed()], dtype=torch.float32), None, torch.zeros(1))
+        env.step((state.item(), action[0, 0].item(), action[0, 1].item(), action[0, 2].item()))
+        
+        agent.updateHis(patch, action[:, 2], torch.tensor([env.ur5.holding_state], dtype=torch.float32), None, torch.zeros(1))

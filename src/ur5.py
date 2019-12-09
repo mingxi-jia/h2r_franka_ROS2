@@ -20,6 +20,8 @@ class UR5:
         self.pick_offset = 0.1
         self.place_offset = 0.1
 
+        self.holding_state = 0
+
     def jointsCallback(self, msg):
         '''Callback function for the joint_states ROS topic.'''
 
@@ -60,16 +62,27 @@ class UR5:
         self.moveToJ(self.home_joint_values)
 
     def pick(self, x, y, z, r):
+        if self.holding_state:
+            return
         self.moveToP(x, y, z+self.pick_offset, 0, 0, r)
         self.moveToP(x, y, z, 0, 0, r)
-        self.gripper.closeGripper(force=5)
+        self.gripper.closeGripper(force=0)
+        rospy.sleep(1)
+        self.holding_state = 1
+        if self.gripper.isClosed():
+            self.gripper.openGripper()
+            self.holding_state = 0
         self.moveToP(x, y, z+self.pick_offset, 0, 0, r)
         self.moveToHome()
 
     def place(self, x, y, z, r):
+        if not self.holding_state:
+            return
         self.moveToP(x, y, z+self.place_offset, 0, 0, r)
         self.moveToP(x, y, z, 0, 0, r)
-        self.gripper.openGripper(100)
+        self.gripper.openGripper(speed=100)
+        rospy.sleep(1)
+        self.holding_state = 0
         self.moveToP(x, y, z+self.place_offset, 0, 0, r)
         self.moveToHome()
 
