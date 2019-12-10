@@ -60,7 +60,8 @@ if __name__ == '__main__':
 
     model = 'dfpyramid'
     agent = creatAgent()
-    pre = '/home/dian/Downloads/snapshot_house_building_3'
+    # pre = '/home/dian/Downloads/snapshot_house_building_3'
+    pre = '/home/dian/Downloads/snapshot_block_stacking'
     agent.loadModel(pre)
     agent.eval()
     agent.initHis(1)

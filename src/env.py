@@ -65,7 +65,7 @@ class Env:
                                       int(max(y_pixel - self.obs_size[1] / 20, 0)):
                                       int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
         safe_z_pos = np.max(local_region) + self.workspace[2][0]
-        safe_z_pos = safe_z_pos - 0.03 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + 0.005
+        safe_z_pos = safe_z_pos - 0.03 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + 0.006
 
         return safe_z_pos
 

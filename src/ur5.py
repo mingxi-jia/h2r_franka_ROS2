@@ -3,6 +3,8 @@ from sensor_msgs.msg import JointState
 import rospy
 import numpy as np
 from src.robotiq_gripper import Gripper
+from src.tf_proxy import TFProxy
+import src.utils.transformation as transformation
 
 class UR5:
     def __init__(self):
@@ -22,6 +24,18 @@ class UR5:
 
         self.holding_state = 0
 
+        self.tf_proxy = TFProxy()
+
+    def getEEPose(self):
+        rTe = self.tf_proxy.lookupTransform('base_link', 'ee_link')
+        hTr = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        eTt = np.array([[0, 0, -1, 0], [0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]]).dot(np.array([[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])).dot(np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
+        T = hTr.dot(rTe).dot(eTt)
+        pos = T[:3, 3]
+        rot = transformation.euler_from_matrix(T)
+
+        return np.concatenate((pos, rot))
+
     def jointsCallback(self, msg):
         '''Callback function for the joint_states ROS topic.'''
 
@@ -39,24 +53,29 @@ class UR5:
         while True:
             prev_joint_position = self.joint_values.copy()
             rospy.sleep(0.5)
-            print(self.joint_values)
             if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
                 break
 
     def moveToJ(self, joint_pos):
-        s = 'movej({})'.format(joint_pos)
-        rospy.sleep(0.5)
-        self.pub.publish(s)
-        self.waitUntilNotMoving()
+        for _ in range(2):
+            s = 'movej({})'.format(joint_pos)
+            rospy.sleep(0.5)
+            self.pub.publish(s)
+            self.waitUntilNotMoving()
+            if np.allclose(joint_pos, self.joint_values, atol=1e-2):
+                return
 
 
     def moveToP(self, x, y, z, rx, ry, rz):
         rz = -np.pi/2 + rz
         pose = [x, y, z, rx, ry, rz]
-        s = 'movel(p{})'.format(pose)
-        rospy.sleep(0.5)
-        self.pub.publish(s)
-        self.waitUntilNotMoving()
+        for _ in range(2):
+            s = 'movel(p{})'.format(pose)
+            rospy.sleep(0.5)
+            self.pub.publish(s)
+            self.waitUntilNotMoving()
+            if np.allclose(self.getEEPose()[:3], pose[:3], atol=1e-2) and np.allclose(self.getEEPose()[3:], pose[3:],  atol=1e-1):
+                return
 
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)
@@ -90,5 +109,5 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    # ur5.moveToP(-0.26, -0.1, 0.3, 0, 0, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, 0, 0, 0)
     ur5.moveToJ(ur5.home_joint_values)
