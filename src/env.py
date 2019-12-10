@@ -5,6 +5,7 @@ import scipy
 import torch
 import ros_numpy
 import numpy as np
+import matplotlib.pyplot as plt
 
 class Env:
     def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.0015, obs_size=(90, 90),
@@ -85,9 +86,9 @@ class Env:
         return motion_primative, x, y, z, rot
 
     def _preProcessObs(self, obs):
-        # b = np.linspace(0.01, 0, 90).reshape(1, 90).repeat(90, axis=0)
+        obs = scipy.ndimage.median_filter(obs, 2)
         b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
-        a = np.linspace(1, 0.7, 90).reshape(1, 90).repeat(90, axis=0).T
+        a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
         b = b * a * 0.01
         obs -= b
         obs *= 0.8

@@ -21,11 +21,14 @@ class ImgProxy:
             self.msg = msg
             self.has_image = True
 
-    def getImage(self):
-        self.has_image = False
-        while not self.has_image:
-            rospy.sleep(0.01)
-        self.image = ros_numpy.numpify(self.msg)
+    def getImage(self, iteration=10):
+        images = []
+        for _ in range(iteration):
+            self.has_image = False
+            while not self.has_image:
+                rospy.sleep(0.01)
+            images.append(ros_numpy.numpify(self.msg))
+        self.image = np.mean(images, axis=0)
         # self.image = self.image[240-100:240+100, 320-100:320+100]
         # self.image[np.isnan(self.image)] = 0
         # self.image = -self.image
