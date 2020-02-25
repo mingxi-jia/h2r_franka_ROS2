@@ -3,7 +3,7 @@ from sensor_msgs.msg import JointState
 import rospy
 import numpy as np
 from src.robotiq_gripper import Gripper
-from src.tf_proxy import TFProxy
+# from src.tf_proxy import TFProxy
 import src.utils.transformation as transformation
 
 class UR5:
@@ -24,17 +24,17 @@ class UR5:
 
         self.holding_state = 0
 
-        self.tf_proxy = TFProxy()
+        # self.tf_proxy = TFProxy()
 
-    def getEEPose(self):
-        rTe = self.tf_proxy.lookupTransform('base_link', 'ee_link')
-        hTr = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-        eTt = np.array([[0, 0, -1, 0], [0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]]).dot(np.array([[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])).dot(np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
-        T = hTr.dot(rTe).dot(eTt)
-        pos = T[:3, 3]
-        rot = transformation.euler_from_matrix(T)
-
-        return np.concatenate((pos, rot))
+    # def getEEPose(self):
+    #     rTe = self.tf_proxy.lookupTransform('base_link', 'ee_link')
+    #     hTr = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    #     eTt = np.array([[0, 0, -1, 0], [0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]]).dot(np.array([[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])).dot(np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
+    #     T = hTr.dot(rTe).dot(eTt)
+    #     pos = T[:3, 3]
+    #     rot = transformation.euler_from_matrix(T)
+    #
+    #     return np.concatenate((pos, rot))
 
     def jointsCallback(self, msg):
         '''Callback function for the joint_states ROS topic.'''
@@ -57,7 +57,7 @@ class UR5:
                 break
 
     def moveToJ(self, joint_pos):
-        for _ in range(2):
+        for _ in range(1):
             s = 'movej({})'.format(joint_pos)
             rospy.sleep(0.5)
             self.pub.publish(s)
@@ -69,13 +69,13 @@ class UR5:
     def moveToP(self, x, y, z, rx, ry, rz):
         rz = -np.pi/2 + rz
         pose = [x, y, z, rx, ry, rz]
-        for _ in range(2):
+        for _ in range(1):
             s = 'movel(p{})'.format(pose)
             rospy.sleep(0.5)
             self.pub.publish(s)
             self.waitUntilNotMoving()
-            if np.allclose(self.getEEPose()[:3], pose[:3], atol=1e-2) and np.allclose(self.getEEPose()[3:], pose[3:],  atol=1e-1):
-                return
+            # if np.allclose(self.getEEPose()[:3], pose[:3], atol=1e-2) and np.allclose(self.getEEPose()[3:], pose[3:],  atol=1e-1):
+            #     return
 
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)

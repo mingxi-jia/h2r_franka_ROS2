@@ -65,7 +65,7 @@ class Env:
                                       int(max(y_pixel - self.obs_size[1] / 20, 0)):
                                       int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
         safe_z_pos = np.max(local_region) + self.workspace[2][0]
-        safe_z_pos = safe_z_pos - 0.03 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + 0.006
+        safe_z_pos = safe_z_pos - 0.04 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos - 0.006
 
         return safe_z_pos
 
@@ -86,7 +86,7 @@ class Env:
         return motion_primative, x, y, z, rot
 
     def _preProcessObs(self, obs):
-        obs = scipy.ndimage.median_filter(obs, 2)
+        obs = scipy.ndimage.median_filter(obs, 1)
         b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
         a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
         b = b * a * 0.01

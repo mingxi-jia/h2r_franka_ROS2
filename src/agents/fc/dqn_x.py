@@ -126,7 +126,7 @@ class DQNX:
     def loadModel(self, path_pre):
         fcn_path = path_pre + '_fcn.pt'
         print('loading {}'.format(fcn_path))
-        self.fcn.load_state_dict(torch.load(fcn_path))
+        self.fcn.load_state_dict(torch.load(fcn_path, map_location=lambda storage, loc: storage))
 
     def saveModel(self, path):
         torch.save(self.fcn.state_dict(), '{}_fcn.pt'.format(path))
