@@ -29,9 +29,11 @@ env_group.add_argument('--render', type=strToBool, default=False)
 env_group.add_argument('--perfect_grasp', action='store_true')
 env_group.add_argument('--perfect_place', action='store_true')
 env_group.add_argument('--tiny', action='store_true')
+env_group.add_argument('--num_random_objects', type=int, default=0)
+env_group.add_argument('--in_hand_mode', type=str, default='raw', choices=['raw', 'proj'])
 
 training_group = parser.add_argument_group('training')
-training_group.add_argument('--alg', default='dqn', choices=['dqn', 'dqn_sl_anneal', 'dqn_margin', 'dagger'])
+training_group.add_argument('--alg', default='dqn')
 training_group.add_argument('--model', type=str, default='df')
 training_group.add_argument('--num_rotations', type=int, default=8)
 training_group.add_argument('--half_rotation', type=strToBool, default=True)
@@ -45,7 +47,7 @@ training_group.add_argument('--init_coef', type=float, default=0.1)
 training_group.add_argument('--final_coef', type=float, default=0.01)
 training_group.add_argument('--training_iters', type=int, default=1)
 training_group.add_argument('--training_offset', type=int, default=1000)
-training_group.add_argument('--max_episode', type=int, default=100000)
+training_group.add_argument('--max_episode', type=int, default=50000)
 training_group.add_argument('--device_name', type=str, default='cuda')
 training_group.add_argument('--target_update_freq', type=int, default=100)
 training_group.add_argument('--iter_update', action='store_true')
@@ -53,23 +55,40 @@ training_group.add_argument('--save_freq', type=int, default=500)
 training_group.add_argument('--action_selection', type=str, default='egreedy')
 training_group.add_argument('--load_pre', type=str, default=None)
 training_group.add_argument('--sl', action='store_true')
+training_group.add_argument('--expert_sl', action='store_true')
 training_group.add_argument('--sl_anneal_episode', type=int, default=20000)
 training_group.add_argument('--planner_episode', type=int, default=0)
 training_group.add_argument('--note', type=str, default=None)
 training_group.add_argument('--seed', type=int, default=None)
-training_group.add_argument('--divide_factor', type=int, default=2)
+training_group.add_argument('--divide_factor', type=int, default=1)
+training_group.add_argument('--perlin', type=float, default=0.0)
+training_group.add_argument('--fill_buffer', action='store_true')
+training_group.add_argument('--fill_buffer_check_sl_valid', action='store_true')
+training_group.add_argument('--fill_buffer_deconstruct', action='store_true')
+training_group.add_argument('--load_buffer', type=str, default=None)
+training_group.add_argument('--load_buffer_pick_z_offset', type=int, default=1)
+training_group.add_argument('--load_buffer_place_z_offset', type=int, default=1)
+training_group.add_argument('--pre_train_step', type=int, default=0)
+training_group.add_argument('--num_zs', type=int, default=16)
+training_group.add_argument('--min_z', type=float, default=0.02)
+training_group.add_argument('--max_z', type=float, default=0.17)
+
+planner_group = parser.add_argument_group('planner')
+planner_group.add_argument('--planner_pos_noise', type=float, default=0)
+planner_group.add_argument('--planner_rot_noise', type=float, default=0)
 
 margin_group = parser.add_argument_group('margin')
-margin_group.add_argument('--margin', default='ce', choices=['ce', 'bce', 'bcel', 'l'])
+margin_group.add_argument('--margin', default='ce', choices=['ce', 'bce', 'bcel', 'l', 'oril'])
 margin_group.add_argument('--margin_l', type=float, default=0.1)
-margin_group.add_argument('--margin_weight', type=float, default=1.0)
-margin_group.add_argument('--margin_beta', type=float, default=1.0)
+margin_group.add_argument('--margin_weight', type=float, default=0.1)
+margin_group.add_argument('--margin_beta', type=float, default=10)
 
 buffer_group = parser.add_argument_group('buffer')
-buffer_group.add_argument('--buffer', default='normal', choices=['normal', 'per', 'expert'])
+buffer_group.add_argument('--buffer', default='normal', choices=['normal', 'per', 'expert', 'per_expert'])
 buffer_group.add_argument('--per_eps', type=float, default=1e-6, help='Epsilon parameter for PER')
 buffer_group.add_argument('--per_alpha', type=float, default=0.6, help='Alpha parameter for PER')
 buffer_group.add_argument('--per_beta', type=float, default=0.4, help='Initial beta parameter for PER')
+buffer_group.add_argument('--per_expert_eps', type=float, default=0.1)
 buffer_group.add_argument('--batch_size', type=int, default=32)
 buffer_group.add_argument('--buffer_size', type=int, default=100000)
 
@@ -144,7 +163,7 @@ else:
         heightmap_size = 90
         height_range = (0.025, 0.10)
 
-if env == 'block_picking':
+if env in ['block_picking', 'random_picking', 'random_float_picking', 'cube_float_picking']:
     num_primitives = 1
 else:
     num_primitives = 2
@@ -158,6 +177,8 @@ if half_rotation:
     rotations = [np.pi / num_rotations * i for i in range(num_rotations)]
 else:
     rotations = [(2 * np.pi) / num_rotations * i for i in range(num_rotations)]
+num_random_objects = args.num_random_objects
+in_hand_mode = args.in_hand_mode
 
 ######################################################################################
 # training
@@ -187,22 +208,36 @@ else:
 save_freq = args.save_freq
 action_selection = args.action_selection
 sl = args.sl
+expert_sl = args.expert_sl
 sl_anneal_episode = args.sl_anneal_episode
 planner_episode = args.planner_episode
-if sl:
-    reward_type='step_left'
 
 load_pre = args.load_pre
 is_test = args.test
 note = args.note
 seed = args.seed
 divide_factor = args.divide_factor
+perlin = args.perlin
+
+# pre train
+fill_buffer = args.fill_buffer
+fill_buffer_check_sl_valid = args.fill_buffer_check_sl_valid
+fill_buffer_deconstruct = args.fill_buffer_deconstruct
+load_buffer = args.load_buffer
+load_buffer_pick_z_offset = args.load_buffer_pick_z_offset
+load_buffer_place_z_offset = args.load_buffer_place_z_offset
+pre_train_step = args.pre_train_step
+
+# planner
+planner_pos_noise = args.planner_pos_noise
+planner_rot_noise = args.planner_rot_noise
 
 # buffer
 buffer_type = args.buffer
 per_eps = args.per_eps
 per_alpha = args.per_alpha
 per_beta = args.per_beta
+per_expert_eps = args.per_expert_eps
 batch_size = args.batch_size
 buffer_size = args.buffer_size
 
@@ -221,12 +256,19 @@ load_sub = args.load_sub
 if load_sub == 'None':
     load_sub = None
 
+# z
+num_zs = args.num_zs
+min_z = args.min_z
+max_z = args.max_z
+
 ######################################################################################
 env_config = {'workspace': workspace, 'max_steps': max_episode_steps, 'obs_size': heightmap_size,
               'fast_mode': fast_mode, 'action_sequence': action_sequence, 'render': render,
               'num_objects': num_objects, 'random_orientation':random_orientation, 'reward_type': reward_type,
               'simulate_grasp': simulate_grasp, 'pick_rot': pick_rot, 'place_rot': place_rot,
-              'perfect_grasp': perfect_grasp, 'perfect_place': perfect_place, 'scale': scale, 'robot': robot}
+              'perfect_grasp': perfect_grasp, 'perfect_place': perfect_place, 'scale': scale, 'robot': robot,
+              'workspace_check': 'point', 'in_hand_mode': in_hand_mode, 'num_random_objects': num_random_objects}
+planner_config = {'pos_noise': planner_pos_noise, 'rot_noise': planner_rot_noise}
 if seed is not None:
     env_config['seed'] = seed
 ######################################################################################

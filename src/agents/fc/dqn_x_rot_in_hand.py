@@ -16,6 +16,8 @@ class DQNXRotInHand(DQNXRot):
         self.empty_in_hand = torch.zeros((1, 1, self.patch_size, self.patch_size))
         self.his = None
 
+        self.expert_sl = False
+
     def initHis(self, num_processes):
         self.his = torch.zeros((num_processes, 1, self.patch_size, self.patch_size))
 
@@ -36,10 +38,10 @@ class DQNXRotInHand(DQNXRot):
                 int(img_size / 2 - self.patch_size / 2):int(img_size / 2 + self.patch_size / 2)]
         return patch
 
-    def getCurrentObs(self, obs):
+    def getCurrentObs(self, in_hand, obs):
         obss = []
         for i, o in enumerate(obs):
-            obss.append((o.squeeze(), self.his[i].squeeze()))
+            obss.append((o.squeeze(), in_hand[i].squeeze()))
         return obss
 
     def getNextObs(self, patch, rotation, states_, obs_, dones):
@@ -128,14 +130,27 @@ class DQNXRotInHand(DQNXRot):
             predictions = predictions.cpu()
         return predictions
 
-    def getEGreedyActions(self, states, obs, eps, coef=0.01):
+    def getEGreedyActions(self, states, in_hand, obs, eps, coef=0.01):
         obs = obs.to(self.device)
-        in_hand = self.his.to(self.device)
+        in_hand = in_hand.to(self.device)
         with torch.no_grad():
             q_value_maps = self.forwardFCN(states, (obs, in_hand), to_cpu=True)
         q_value_maps += torch.randn_like(q_value_maps) * eps * coef
         action_idx = torch_utils.argmax3d(q_value_maps).long()
+        pixels = action_idx[:, 1:]
         rot_idx = action_idx[:, 0:1]
+
+        rand = torch.tensor(np.random.uniform(0, 1, states.size(0)))
+        rand_mask = rand < eps
+        for i, m in enumerate(rand_mask):
+            if m:
+                pixel_candidates = torch.nonzero(obs[i, 0]>0.01)
+                rand_pixel = pixel_candidates[np.random.randint(pixel_candidates.size(0))]
+                pixels[i] = rand_pixel
+
+        rand_phi = torch.randint_like(torch.empty(rand_mask.sum()), 0, self.num_rotations)
+        rot_idx[rand_mask, 0] = rand_phi.long()
+
         rot = self.rotations[rot_idx]
         pixels = action_idx[:, 1:]
         x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
@@ -164,6 +179,8 @@ class DQNXRotInHand(DQNXRot):
         next_obs = []
         next_in_hands = []
         dones = []
+        step_lefts = []
+        is_experts = []
         for d in batch:
             states.append(d.state)
             images.append(d.obs[0])
@@ -174,6 +191,8 @@ class DQNXRotInHand(DQNXRot):
             next_obs.append(d.next_obs[0])
             next_in_hands.append(d.next_obs[1])
             dones.append(d.done)
+            step_lefts.append(d.step_left)
+            is_experts.append(d.expert)
         states_tensor = torch.stack(states).long().to(self.device)
         image_tensor = torch.stack(images).to(self.device)
         if len(image_tensor.shape) == 3:
@@ -192,6 +211,36 @@ class DQNXRotInHand(DQNXRot):
             next_in_hands_tensor = next_in_hands_tensor.unsqueeze(1)
         dones_tensor = torch.stack(dones).int()
         non_final_masks = (dones_tensor ^ 1).float().to(self.device)
+        step_lefts_tensor = torch.stack(step_lefts).to(self.device)
+        is_experts_tensor = torch.stack(is_experts).bool().to(self.device)
 
         return states_tensor, (image_tensor, in_hand_tensor), xy_tensor, rewards_tensor, next_states_tensor, \
-               (next_obs_tensor, next_in_hands_tensor), non_final_masks
+               (next_obs_tensor, next_in_hands_tensor), non_final_masks, step_lefts_tensor, is_experts_tensor
+
+    def update(self, batch):
+        states, obs, action_idx, rewards, next_states, next_obs, non_final_masks, step_lefts, is_experts = self._loadBatchToDevice(batch)
+        batch_size = states.size(0)
+        if self.sl:
+            q = self.gamma ** step_lefts
+
+        else:
+            with torch.no_grad():
+                q_map_prime = self.forwardFCN(next_states, next_obs, target_net=True)
+                q_prime = q_map_prime.reshape((batch_size, -1)).max(1)[0]
+                q = rewards + self.gamma * q_prime * non_final_masks
+                q = q.detach()
+            if self.expert_sl:
+                q_target_sl = self.gamma ** step_lefts
+                q[is_experts] = q_target_sl[is_experts]
+
+        q_output = self.forwardFCN(states, obs, specific_rotations=action_idx[:, 2:3].cpu())[torch.arange(0, batch_size), 0, action_idx[:, 0], action_idx[:, 1]]
+        loss = F.smooth_l1_loss(q_output, q)
+        self.fcn_optimizer.zero_grad()
+        loss.backward()
+        for param in self.fcn.parameters():
+            param.grad.data.clamp_(-1, 1)
+        self.fcn_optimizer.step()
+
+        td_error = torch.abs(q_output - q).detach()
+
+        return loss.item(), td_error

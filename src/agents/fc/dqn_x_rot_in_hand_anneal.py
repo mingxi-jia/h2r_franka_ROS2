@@ -13,10 +13,7 @@ class DQNXRotInHandAnneal(DQNXRotInHand):
                          num_rotations, half_rotation, patch_size)
 
     def update(self, batch, sl_weight):
-        if self.per:
-            (states, obs, action_idx, step_left, next_states, next_obs, non_final_masks), weights, idxes = self._loadPrioritizedBatchToDevice(batch)
-        else:
-            states, obs, action_idx, step_left, next_states, next_obs, non_final_masks = self._loadBatchToDevice(batch)
+        states, obs, action_idx, step_left, next_states, next_obs, non_final_masks = self._loadBatchToDevice(batch)
         batch_size = states.size(0)
         
         rewards = (step_left == 0).float()
@@ -41,10 +38,7 @@ class DQNXRotInHandAnneal(DQNXRotInHand):
         q = sl_weight * q_sl + (1-sl_weight) * q_rl
 
         q_output = self.forwardFCN(states, obs, specific_rotations=action_idx[:, 2:3].cpu())[torch.arange(0, batch_size), 0, action_idx[:, 0], action_idx[:, 1]]
-        if self.per:
-            loss = self.criterion(q_output, q, weights, torch.ones(batch_size).to(self.device))
-        else:
-            loss = F.smooth_l1_loss(q_output, q)
+        loss = F.smooth_l1_loss(q_output, q)
         self.fcn_optimizer.zero_grad()
         loss.backward()
         for param in self.fcn.parameters():

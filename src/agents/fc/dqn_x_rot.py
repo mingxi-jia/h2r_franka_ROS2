@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 class DQNXRot(DQNX):
     def __init__(self, fcn, action_space, workspace, heightmap_resolution, device, lr=1e-4, gamma=0.99,
                  num_primitives=1, sl=False, per=False, num_rotations=8, half_rotation=True):
+        self.heightmap_size = 90
         self.num_rotations = num_rotations
         self.half_rotation = half_rotation
         if self.half_rotation:
@@ -140,8 +141,8 @@ class DQNXRot(DQNX):
         rot_idx = action_idx[:, 0:1]
         rot = self.rotations[rot_idx]
         pixels = action_idx[:, 1:]
-        x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
-        y = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
+        x = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
+        y = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
 
         actions = torch.cat((x, y, rot), dim=1)
         action_idx = torch.cat((pixels, rot_idx), dim=1)
@@ -152,25 +153,24 @@ class DQNXRot(DQNX):
         y = plan[:, 1:2]
         rot = plan[:, 2:3]
         states = plan[:, 3:4]
-        pixel_y = ((x - self.workspace[0][0]) / self.heightmap_resolution).long()
-        pixel_x = ((y - self.workspace[1][0]) / self.heightmap_resolution).long()
+        pixel_x = ((x - self.workspace[0][0]) / self.heightmap_resolution).long()
+        pixel_y = ((y - self.workspace[1][0]) / self.heightmap_resolution).long()
+        pixel_x = torch.clamp(pixel_x, 0, self.heightmap_size-1)
+        pixel_y = torch.clamp(pixel_y, 0, self.heightmap_size-1)
         rot_id = (rot.expand(-1, self.num_rotations) - self.rotations).abs().argmin(1).unsqueeze(1)
 
-        x = (pixel_y.float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
-        y = (pixel_x.float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
+        x = (pixel_x.float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
+        y = (pixel_y.float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
         rot = self.rotations[rot_id]
         actions = torch.cat((x, y, rot), dim=1)
         action_idx = torch.cat((pixel_x, pixel_y, rot_id), dim=1)
         return action_idx, actions
 
     def update(self, batch):
-        if self.per:
-            (states, obs, action_idx, rewards, next_states, next_obs, non_final_masks), weights, idxes = self._loadPrioritizedBatchToDevice(batch)
-        else:
-            states, obs, action_idx, rewards, next_states, next_obs, non_final_masks = self._loadBatchToDevice(batch)
+        states, obs, action_idx, rewards, next_states, next_obs, non_final_masks, step_lefts = self._loadBatchToDevice(batch)
         batch_size = states.size(0)
         if self.sl:
-            q = self.gamma ** rewards
+            q = self.gamma ** step_lefts
 
         else:
             with torch.no_grad():
@@ -189,10 +189,7 @@ class DQNXRot(DQNX):
                 q = torch.cat(qs)
 
         q_output = self.forwardFCN(states, obs, specific_rotations=action_idx[:, 2:3].cpu())[torch.arange(0, batch_size), 0, action_idx[:, 0], action_idx[:, 1]]
-        if self.per:
-            loss = self.criterion(q_output, q, weights, torch.ones(batch_size).to(self.device))
-        else:
-            loss = F.smooth_l1_loss(q_output, q)
+        loss = F.smooth_l1_loss(q_output, q)
         self.fcn_optimizer.zero_grad()
         loss.backward()
         for param in self.fcn.parameters():

@@ -15,7 +15,7 @@ class DQNX:
         self.lr = lr
         self.fcn = fcn
         self.target_fcn = deepcopy(fcn)
-        self.fcn_optimizer = torch.optim.Adam(self.fcn.parameters(), lr=self.lr)
+        self.fcn_optimizer = torch.optim.Adam(self.fcn.parameters(), lr=self.lr, weight_decay=1e-5)
         self.updateTarget()
         self.gamma = gamma
         self.criterion = torch_utils.WeightedHuberLoss()
@@ -44,8 +44,8 @@ class DQNX:
             q_value_maps = self.forwardFCN(states, obs, to_cpu=True)
         q_value_maps += torch.randn_like(q_value_maps) * eps * coef
         pixels = torch_utils.argmax2d(q_value_maps).long()
-        x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
-        y = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
+        x = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
+        y = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
 
         actions = torch.cat((x, y), dim=1)
         action_idx = pixels
@@ -97,6 +97,7 @@ class DQNX:
         next_states = []
         next_obs = []
         dones = []
+        step_lefts = []
         for d in batch:
             states.append(d.state)
             images.append(d.obs)
@@ -105,6 +106,7 @@ class DQNX:
             next_states.append(d.next_state)
             next_obs.append(d.next_obs)
             dones.append(d.done)
+            step_lefts.append(d.step_left)
         states_tensor = torch.stack(states).long().to(self.device)
         image_tensor = torch.stack(images).to(self.device)
         if len(image_tensor.shape) == 3:
@@ -115,8 +117,9 @@ class DQNX:
         next_obs_tensor = torch.stack(next_obs).to(self.device)
         dones_tensor = torch.stack(dones).int()
         non_final_masks = (dones_tensor ^ 1).float().to(self.device)
+        step_lefts_tensor = torch.stack(step_lefts).to(self.device)
 
-        return states_tensor, image_tensor, xy_tensor, rewards_tensor, next_states_tensor, next_obs_tensor, non_final_masks
+        return states_tensor, image_tensor, xy_tensor, rewards_tensor, next_states_tensor, next_obs_tensor, non_final_masks, step_lefts_tensor
 
     def _loadPrioritizedBatchToDevice(self, batch):
         batch, weights, idxes = batch
@@ -126,7 +129,8 @@ class DQNX:
     def loadModel(self, path_pre):
         fcn_path = path_pre + '_fcn.pt'
         print('loading {}'.format(fcn_path))
-        self.fcn.load_state_dict(torch.load(fcn_path, map_location=lambda storage, loc: storage))
+        self.fcn.load_state_dict(torch.load(fcn_path))
+        self.updateTarget()
 
     def saveModel(self, path):
         torch.save(self.fcn.state_dict(), '{}_fcn.pt'.format(path))
@@ -148,4 +152,7 @@ class DQNX:
 
     def eval(self):
         self.fcn.eval()
+
+    def getModelStr(self):
+        return str(self.fcn)
 

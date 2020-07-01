@@ -6,6 +6,9 @@ import torch
 import ros_numpy
 import numpy as np
 import matplotlib.pyplot as plt
+import skimage.transform as sk_transform
+from scipy.ndimage import median_filter
+
 
 class Env:
     def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.0015, obs_size=(90, 90),
@@ -28,6 +31,10 @@ class Env:
         # Motion primatives
         self.PICK_PRIMATIVE = 0
         self.PLACE_PRIMATIVE = 1
+
+        self.in_hand_size = 24
+        self.heightmap_size = 90
+        self.in_hand_mode = 'proj'
 
         self.ee_offset = 0.095
 
@@ -69,22 +76,47 @@ class Env:
 
         return safe_z_pos
 
-    def _getSpecificAction(self, action):
+    def _decodeAction(self, action):
         """
         decode input action base on self.action_sequence
         Args:
           action: action tensor
+
         Returns: motion_primative, x, y, z, rot
+
         """
         primative_idx, x_idx, y_idx, z_idx, rot_idx = map(lambda a: self.action_sequence.find(a),
                                                           ['p', 'x', 'y', 'z', 'r'])
-        motion_primative = action[primative_idx] if primative_idx != -1 else self.ur5.holding_state
+        motion_primative = action[primative_idx] if primative_idx != -1 else 0
         x = action[x_idx]
         y = action[y_idx]
         z = action[z_idx] if z_idx != -1 else self._getPrimativeHeight(motion_primative, x, y)
-        rot = action[rot_idx] if rot_idx != -1 else 0
-        return motion_primative, x, y, z, rot
+        rz, ry, rx = 0, np.pi, 0
+        if self.action_sequence.count('r') <= 1:
+            rz = action[rot_idx] if rot_idx != -1 else 0
+            ry = 0
+            rx = 0
+        elif self.action_sequence.count('r') == 2:
+            rz = action[rot_idx]
+            ry = 0
+            rx = action[rot_idx + 1]
+        elif self.action_sequence.count('r') == 3:
+            rz = action[rot_idx]
+            ry = action[rot_idx + 1]
+            rx = action[rot_idx + 2]
 
+        # [-pi, 0] is easier for the arm(kuka) to execute
+        while rz < -np.pi:
+            rz += np.pi
+            rx = -rx
+            ry = -ry
+        while rz > 0:
+            rz -= np.pi
+            rx = -rx
+            ry = -ry
+        rot = (rx, ry, rz)
+
+        return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
         obs = scipy.ndimage.median_filter(obs, 1)
         b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
@@ -95,7 +127,91 @@ class Env:
         obs[obs < 0.007] = 0
         return obs
 
-    def getObs(self):
+    def _getPixelsFromPos(self, x, y):
+        '''
+        Get the x/y pixels on the heightmap for the given coordinates
+        Args:
+          - x: X coordinate
+          - y: Y coordinate
+        Returns: (x, y) in pixels corresponding to coordinates
+        '''
+        y_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
+        x_pixel = 90 - (y - self.workspace[1][0]) / self.heightmap_resolution
+
+        # x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(pixels.size(0), 1)
+        # y = ((90 - pixels[:, 0].float()) * self.heightmap_resolution + self.workspace[1][0]).reshape(pixels.size(0), 1)
+
+        return int(x_pixel), int(y_pixel)
+
+    def getInHandOccupancyGridProj(self, crop, z, rot):
+        rx, ry, rz = rot
+        # crop = zoom(crop, 2)
+        crop = np.round(crop, 5)
+        size = self.in_hand_size
+
+        zs = np.array([z + (size / 2 - i) * (self.heightmap_resolution) for i in range(size)])
+        zs = zs.reshape((-1, 1, 1))
+        zs = zs.repeat(size, 1).repeat(size, 2)
+        zs[zs < -(self.heightmap_resolution)] = 100
+        c = crop.reshape(1, size, size).repeat(size, 0)
+        ori_occupancy = c > zs
+
+        # transform into points
+        point = np.argwhere(ori_occupancy)
+        # center
+        point = point - size / 2
+        R = np.array([[np.cos(-rx), 0, np.sin(-rx)],
+                      [0, 1, 0],
+                      [-np.sin(-rx), 0, np.cos(-rx)]])
+        point = R.dot(point.T)
+        point = point + size / 2
+        point = np.round(point).astype(int)
+        point = point.T[(np.logical_and(0 < point.T, point.T < size)).all(1)].T
+
+        occupancy = np.zeros((size, size, size))
+        occupancy[point[0], point[1], point[2]] = 1
+        occupancy = median_filter(occupancy, size=2)
+        occupancy = np.ceil(occupancy)
+
+        projection = np.stack((occupancy.sum(0), occupancy.sum(1), occupancy.sum(2)))
+        return projection
+
+    def getInHandImage(self, heightmap, x, y, z, rot, next_heightmap):
+        (rx, ry, rz) = rot
+        # Pad heightmaps for grasps near the edges of the workspace
+        heightmap = np.pad(heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
+        next_heightmap = np.pad(next_heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
+
+        x, y = self._getPixelsFromPos(x, y)
+        x = np.clip(x, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
+        y = np.clip(y, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
+        x = x + int(self.in_hand_size / 2)
+        y = y + int(self.in_hand_size / 2)
+
+        # Get the corners of the crop
+        x_min = int(x - self.in_hand_size / 2)
+        x_max = int(x + self.in_hand_size / 2)
+        y_min = int(y - self.in_hand_size / 2)
+        y_max = int(y + self.in_hand_size / 2)
+
+        # Crop both heightmaps
+        crop = heightmap[x_min:x_max, y_min:y_max]
+        if self.in_hand_mode.find('sub') > -1:
+            next_crop = next_heightmap[x_min:x_max, y_min:y_max]
+
+            # Adjust the in-hand image to remove background objects
+            next_max = np.max(next_crop)
+            crop[crop >= next_max] -= next_max
+
+        # end_effector rotate counter clockwise along z, so in hand img rotate clockwise
+        crop = sk_transform.rotate(crop, np.rad2deg(-rz))
+
+        if self.in_hand_mode.find('proj') > -1:
+            return self.getInHandOccupancyGridProj(crop, z, rot)
+        else:
+            return crop.reshape((self.in_hand_size, self.in_hand_size, 1))
+
+    def getHeightmap(self):
         # get img from camera
         obs = self.img_proxy.getImage()
         # cut img base on workspace size
@@ -119,8 +235,27 @@ class Env:
         obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
         return torch.tensor(obs).to(torch.float32)
 
+    def getEmptyInHand(self):
+        if self.in_hand_mode.find('proj') > -1:
+            return np.zeros((3, self.in_hand_size, self.in_hand_size))
+        else:
+            return np.zeros((1, self.in_hand_size, self.in_hand_size))
+
+    def getObs(self, action=None):
+        old_heightmap = self.heightmap
+        self.heightmap = self.getHeightmap()
+
+        if action is None or self.ur5.holding_state == False:
+            in_hand_img = self.getEmptyInHand()
+        else:
+            motion_primative, x, y, z, rot = self._decodeAction(action)
+            z -= self.ws_center[2]
+            in_hand_img = self.getInHandImage(old_heightmap[0, 0], x, y, z, rot, self.heightmap[0, 0])
+        in_hand_img = in_hand_img.reshape(1, in_hand_img.shape[0], in_hand_img.shape[1], in_hand_img.shape[2])
+        return self.heightmap, torch.tensor(in_hand_img).to(torch.float32)
+
     def step(self, action):
-        p, x, y, z, r = self._getSpecificAction(action)
+        p, x, y, z, r = self._decodeAction(action)
         if p == self.PICK_PRIMATIVE:
             self.ur5.pick(x, y, z, r)
         elif p == self.PLACE_PRIMATIVE:

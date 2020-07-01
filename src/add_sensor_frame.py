@@ -24,6 +24,7 @@ if __name__ == '__main__':
     # br.sendTransform((0.096, 0.061, 0.046), (0, 0, 0, 1), rospy.Time.now(), "camera_link", "ee_link")
     # br.sendTransform((0.08, 0.061, 0.046), (0, 0, 0, 1), rospy.Time.now(), "camera_link", "ee_link")
     
-    br.sendTransform((0.533, 0.04, 0.8), (0, 0.7068252, 0, 0.7073883), rospy.Time.now(), "camera_link", "base_link")
+    # br.sendTransform((0.533, 0.04, 0.8), (0, 0.7068252, 0, 0.7073883), rospy.Time.now(), "camera_link", "base_link")
+    br.sendTransform((0.096, 0.061, 0.046), (0, 0, 0, 1), rospy.Time.now(), "camera_link", "ee_link")
     
     rate.sleep()

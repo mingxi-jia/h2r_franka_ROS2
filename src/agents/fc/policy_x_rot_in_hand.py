@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from utils import torch_utils
 from agents.fc.dqn_x_rot_in_hand import DQNXRotInHand
 
-class PolicyRotInHand(DQNXRotInHand):
+class PolicyXRotInHand(DQNXRotInHand):
     def __init__(self, fcn, action_space, workspace, heightmap_resolution, device, lr=1e-4, gamma=0.99,
                  num_primitives=1, sl=False, per=False, num_rotations=8, half_rotation=True, patch_size=24, update_divide_factor=2):
         super().__init__(fcn, action_space, workspace, heightmap_resolution, device, lr, gamma, num_primitives, sl, per,
@@ -62,3 +62,25 @@ class PolicyRotInHand(DQNXRotInHand):
         action_tensor = torch.stack(actions).to(self.device)
 
         return states_tensor, (image_tensor, in_hand_tensor), action_tensor
+
+    def getEGreedyActions(self, states, in_hand, obs, eps, coef=0.01):
+        obs = obs.to(self.device)
+        in_hand = in_hand.to(self.device)
+        with torch.no_grad():
+            q_value_maps = self.forwardFCN(states, (obs, in_hand), to_cpu=True)
+        q_value_maps += torch.randn_like(q_value_maps) * eps * coef
+
+        m = torch.multinomial(F.softmax(q_value_maps.reshape(states.size(0), -1), 1), 1)
+        d = obs.size(2)
+        action_idx = torch.cat(((m / (d * d)).view(-1, 1), ((m % (d * d)) / d).view(-1, 1), ((m % (d * d)) % d).view(-1, 1)),
+                         dim=1)
+        # action_idx = torch_utils.argmax3d(q_value_maps).long()
+        rot_idx = action_idx[:, 0:1]
+        rot = self.rotations[rot_idx]
+        pixels = action_idx[:, 1:]
+        x = (pixels[:, 0].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(states.size(0), 1)
+        y = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[1][0]).reshape(states.size(0), 1)
+
+        actions = torch.cat((x, y, rot), dim=1)
+        action_idx = torch.cat((pixels, rot_idx), dim=1)
+        return q_value_maps, action_idx, actions
