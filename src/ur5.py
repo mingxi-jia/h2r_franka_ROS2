@@ -70,16 +70,16 @@ class UR5:
     def moveToP(self, x, y, z, rx, ry, rz):
         # rz = np.pi/2 + rz
 
-        z -= 0.15
-        T = transformation.euler_matrix(rx, ry, rz)
-        pos = np.array([x, y, z])
-        pos += 0.15 * T[:3, 2]
-        x, y, z = pos
+        # z -= 0.15
+        # T = transformation.euler_matrix(rx, ry, rz)
+        # pos = np.array([x, y, z])
+        # pos += 0.15 * T[:3, 2]
+        # x, y, z = pos
 
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
         pose = [x, y, z, rx, ry, rz]
         for _ in range(1):
-            s = 'movel(p{},v=0.1)'.format(pose)
+            s = 'movel(p{})'.format(pose)
             rospy.sleep(0.5)
             self.pub.publish(s)
             self.waitUntilNotMoving()
@@ -93,7 +93,7 @@ class UR5:
         if self.holding_state:
             return
         rx, ry, rz = r
-        rz = np.pi/2 + rz
+        # rz = np.pi/2 + rz
         T = transformation.euler_matrix(rx, ry, rz)
         pre_pos = np.array([x, y, z])
         pre_pos += self.pick_offset * T[:3, 2]
@@ -113,7 +113,7 @@ class UR5:
         if not self.holding_state:
             return
         rx, ry, rz = r
-        rz = np.pi/2 + rz
+        # rz = np.pi/2 + rz
         T = transformation.euler_matrix(rx, ry, rz)
         pre_pos = np.array([x, y, z])
         pre_pos += self.pick_offset * T[:3, 2]
@@ -129,6 +129,6 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    ur5.moveToP(-0.26, -0.1, 0.5, np.pi/4, 0, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, 0, np.pi/6, 0)
     # ur5.moveToP(-0.26, -0.1, 0.5, 0.3848295, 0.3588603, 0.7143543)
     # ur5.moveToJ(ur5.home_joint_values)

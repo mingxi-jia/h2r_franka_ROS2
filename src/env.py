@@ -98,8 +98,8 @@ class Env:
             rx = 0
         elif self.action_sequence.count('r') == 2:
             rz = action[rot_idx]
-            ry = 0
-            rx = action[rot_idx + 1]
+            ry = action[rot_idx + 1]
+            rx = 0
         elif self.action_sequence.count('r') == 3:
             rz = action[rot_idx]
             ry = action[rot_idx + 1]
@@ -123,7 +123,7 @@ class Env:
         a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
         b = b * a * 0.01
         obs -= b
-        obs *= 0.8
+        # obs *= 0.8
         obs[obs < 0.007] = 0
         return obs
 

@@ -407,13 +407,13 @@ class DQN3LMaxShared:
     def loadModel(self, path_pre):
         q1_path = path_pre + '_q1.pt'
         print('loading {}'.format(q1_path))
-        self.q1.load_state_dict(torch.load(q1_path))
+        self.q1.load_state_dict(torch.load(q1_path, map_location='cuda:0'))
         q2_path = path_pre + '_q2.pt'
         print('loading {}'.format(q2_path))
-        self.q2.load_state_dict(torch.load(q2_path))
+        self.q2.load_state_dict(torch.load(q2_path, map_location='cuda:0'))
         q3_path = path_pre + '_q3.pt'
         print('loading {}'.format(q3_path))
-        self.q3.load_state_dict(torch.load(q3_path))
+        self.q3.load_state_dict(torch.load(q3_path, map_location='cuda:0'))
         self.updateTarget()
 
     def saveModel(self, path):
