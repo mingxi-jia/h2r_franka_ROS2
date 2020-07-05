@@ -123,7 +123,7 @@ class Env:
         a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
         b = b * a * 0.01
         obs -= b
-        # obs *= 0.8
+        # obs *= 0.9
         obs[obs < 0.007] = 0
         return obs
 
@@ -144,7 +144,7 @@ class Env:
         return int(x_pixel), int(y_pixel)
 
     def getInHandOccupancyGridProj(self, crop, z, rot):
-        rx, ry, rz = rot
+        ry, rx, rz = rot
         # crop = zoom(crop, 2)
         crop = np.round(crop, 5)
         size = self.in_hand_size

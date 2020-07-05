@@ -59,7 +59,7 @@ class UR5:
 
     def moveToJ(self, joint_pos):
         for _ in range(1):
-            s = 'movej({})'.format(joint_pos)
+            s = 'movej({}, v=2)'.format(joint_pos)
             rospy.sleep(0.5)
             self.pub.publish(s)
             self.waitUntilNotMoving()
@@ -79,7 +79,7 @@ class UR5:
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
         pose = [x, y, z, rx, ry, rz]
         for _ in range(1):
-            s = 'movel(p{})'.format(pose)
+            s = 'movel(p{}, v=0.5)'.format(pose)
             rospy.sleep(0.5)
             self.pub.publish(s)
             self.waitUntilNotMoving()
@@ -96,11 +96,12 @@ class UR5:
         # rz = np.pi/2 + rz
         T = transformation.euler_matrix(rx, ry, rz)
         pre_pos = np.array([x, y, z])
-        pre_pos += self.pick_offset * T[:3, 2]
+        # pre_pos += self.pick_offset * T[:3, 2]
+        pre_pos[2] += self.pick_offset
 
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.closeGripper(force=0)
+        self.gripper.closeGripper(speed=50, force=1)
         rospy.sleep(1)
         self.holding_state = 1
         if self.gripper.isClosed():
@@ -116,10 +117,11 @@ class UR5:
         # rz = np.pi/2 + rz
         T = transformation.euler_matrix(rx, ry, rz)
         pre_pos = np.array([x, y, z])
-        pre_pos += self.pick_offset * T[:3, 2]
+        # pre_pos += self.pick_offset * T[:3, 2]
+        pre_pos[2] += self.pick_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.openGripper(speed=100)
+        self.gripper.openGripper(speed=50)
         rospy.sleep(1)
         self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)

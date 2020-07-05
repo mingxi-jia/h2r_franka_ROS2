@@ -34,6 +34,7 @@ from agents.hierarchy.margin_3l_rz_rxz import Margin3LMaxSharedRzRxZ
 from src.utils.parameters_x import *
 
 from src.utils import torch_utils
+from src.utils.torch_utils import rand_perlin_2d
 
 import rospy
 from src.img_proxy import ImgProxy
@@ -334,6 +335,19 @@ def creatAgent():
         agent.padding = 96
     return agent
 
+def addPerlinNoiseToObs(obs, c):
+    for i in range(1):
+        obs[i, 0] += (c * rand_perlin_2d((90, 90), (
+            int(np.random.choice([1, 2, 3, 5, 6], 1)[0]),
+            int(np.random.choice([1, 2, 3, 5, 6], 1)[0]))) + c)
+
+def addPerlinNoiseToInHand(in_hand, c):
+    for i in range(1):
+        in_hand[i, 0] += (c * rand_perlin_2d((24, 24), (
+            int(np.random.choice([1, 2], 1)[0]),
+            int(np.random.choice([1, 2], 1)[0]))) + c)
+
+
 def plotQMaps(q_value_maps, save=None, j=0):
     idx = torch_utils.argmax3d(q_value_maps)[0]
     fig = plt.figure(figsize=(6, 9))
@@ -357,12 +371,12 @@ if __name__ == '__main__':
     rospy.init_node('image_proxy')
 
     global model, alg, action_sequence, in_hand_mode, workspace, max_z, min_z
-    ws_center = [-0.5257, -0.0098, -0.08]
+    ws_center = [-0.5257, -0.0098, -0.083]
     workspace = np.asarray([[ws_center[0]-0.15, ws_center[0]+0.15],
                             [ws_center[1]-0.15, ws_center[1]+0.15],
                             [ws_center[2], 0.50]])
-    max_z = max_z + ws_center[2]
-    min_z = min_z + ws_center[2]
+    max_z = 0.12
+    min_z = 0.02
     # model = 'dfpyramid'
     model = 'resucat'
     alg = 'margin_hier_max_shared_3l'
@@ -376,7 +390,13 @@ if __name__ == '__main__':
 
     # pre = '/home/dian/Downloads/4h1_7_sdqfd_perlin/ran_tilt_4h1_7_sdqfd_3l_qt_0628_4_12420761_2/models/snapshot_tilt_house_building_1'
     # pre = '/home/dian/Downloads/4h1_9_sdqfd_perlin/models/snapshot_tilt_house_building_1'
-    pre = '/home/dian/Downloads/h3_9_sdqfd_perlin/models/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/h3_9_sdqfd_perlin/models/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/4h1_12_sdqfd_perlin/models/snapshot_tilt_house_building_1'
+    # pre = '/home/dian/Downloads/h3_13_sdqfd_perlin/models/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/h4_13_sdqfd_perlin/models/snapshot_tilt_house_building_4'
+    # pre = '/home/dian/Downloads/4h1_15_sdqfd_perlin/models/snapshot_tilt_house_building_1'
+    # pre = '/home/dian/Downloads/h3_15_sdqfd_perlin/models/snapshot_tilt_house_building_3'
+    pre = '/home/dian/Downloads/h4_15_sdqfd_prelin_temp/models/snapshot_tilt_house_building_4'
 
     agent.loadModel(pre)
     agent.eval()
@@ -390,6 +410,8 @@ if __name__ == '__main__':
     while True:
         j += 1
         obs, in_hand = env.getObs(action)
+        # addPerlinNoiseToObs(obs, 0.005)
+        # addPerlinNoiseToInHand(in_hand, 0.005)
         state = torch.tensor([env.ur5.holding_state], dtype=torch.float32)
         q_map, action_idx, action = agent.getEGreedyActions(state, in_hand, obs, 0, 0)
         plt.imshow(obs[0, 0])
@@ -408,10 +430,17 @@ if __name__ == '__main__':
         # patch = agent.getImgPatch(obs, pixels)
         # action = torch.cat(action[0])
         action = [*list(map(lambda x: x.item(), action[0])), state.item()]
-        z_offset_threshold = -0.015 if state.item() == 0 else 0.02
-        if action[2] - ws_center[2] < obs[0, 0, action_idx[0, 0], action_idx[0, 1]] + z_offset_threshold:
-            print('z {} too small, clipping to {}'.format(action[2], obs[0, 0, action_idx[0, 0], action_idx[0, 1]] + z_offset_threshold + ws_center[2]))
-            action[2] = (obs[0, 0, action_idx[0, 0], action_idx[0, 1]] + z_offset_threshold + ws_center[2]).item()
+
+        z_offset_threshold = -0.03 if state.item() == 0 else 0.01
+        local_region = obs[0, 0,
+                       int(max(action_idx[0, 0] - 5, 0)):int(min(action_idx[0, 0] + 5, heightmap_size)),
+                       int(max(action_idx[0, 1] - 5, 0)):int(min(action_idx[0, 1] + 5, heightmap_size))]
+        safe_z_pos = local_region.max() + z_offset_threshold
+        if action[2] < safe_z_pos:
+            print('z {} too small, clipping to {}'.format(action[2], safe_z_pos))
+            action[2] = safe_z_pos.item()
+
+        action[2] += ws_center[2]
         env.step(action)
         
         # agent.updateHis(patch, action[:, 2], torch.tensor([env.ur5.holding_state], dtype=torch.float32), None, torch.zeros(1))
