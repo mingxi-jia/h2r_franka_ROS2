@@ -101,7 +101,7 @@ class UR5:
 
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.closeGripper(speed=50, force=1)
+        self.gripper.closeGripper(force=1)
         rospy.sleep(1)
         self.holding_state = 1
         if self.gripper.isClosed():
@@ -121,7 +121,7 @@ class UR5:
         pre_pos[2] += self.pick_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.openGripper(speed=50)
+        self.gripper.openGripper()
         rospy.sleep(1)
         self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
@@ -131,6 +131,6 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    ur5.moveToP(-0.26, -0.1, 0.3, 0, np.pi/6, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, 0, 0, 0)
     # ur5.moveToP(-0.26, -0.1, 0.5, 0.3848295, 0.3588603, 0.7143543)
     # ur5.moveToJ(ur5.home_joint_values)

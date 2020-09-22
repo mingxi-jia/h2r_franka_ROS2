@@ -371,7 +371,7 @@ if __name__ == '__main__':
     rospy.init_node('image_proxy')
 
     global model, alg, action_sequence, in_hand_mode, workspace, max_z, min_z
-    ws_center = [-0.5257, -0.0098, -0.083]
+    ws_center = [-0.524, -0.0098, -0.09]
     workspace = np.asarray([[ws_center[0]-0.15, ws_center[0]+0.15],
                             [ws_center[1]-0.15, ws_center[1]+0.15],
                             [ws_center[2], 0.50]])
@@ -396,7 +396,11 @@ if __name__ == '__main__':
     # pre = '/home/dian/Downloads/h4_13_sdqfd_perlin/models/snapshot_tilt_house_building_4'
     # pre = '/home/dian/Downloads/4h1_15_sdqfd_perlin/models/snapshot_tilt_house_building_1'
     # pre = '/home/dian/Downloads/h3_15_sdqfd_perlin/models/snapshot_tilt_house_building_3'
-    pre = '/home/dian/Downloads/h4_15_sdqfd_prelin_temp/models/snapshot_tilt_house_building_4'
+    # pre = '/home/dian/Downloads/imh6_2_sdqfd_perlin/models/snapshot_tilt_improvise_house_building_6'
+    # pre = '/home/dian/Downloads/imh6_3/models/snapshot_tilt_improvise_house_building_6'
+    # pre = '/home/dian/Downloads/imh2_2_sdqfd_perlin/models/snapshot_tilt_improvise_house_building_2'
+    # pre = '/home/dian/Downloads/imh2_4_tmp/models/snapshot_tilt_improvise_house_building_2'
+    pre = '/home/dian/Downloads/imh6_4_tmp/models/snapshot_tilt_improvise_house_building_6'
 
     agent.loadModel(pre)
     agent.eval()
@@ -415,16 +419,18 @@ if __name__ == '__main__':
         state = torch.tensor([env.ur5.holding_state], dtype=torch.float32)
         q_map, action_idx, action = agent.getEGreedyActions(state, in_hand, obs, 0, 0)
         plt.imshow(obs[0, 0])
-        plt.colorbar()
+        # plt.colorbar()
         plt.axis('off')
-        plt.scatter(action_idx[0, 1], action_idx[0, 0], c='r')
-        # plt.savefig(os.path.join('/home/dian/Documents/obs', '{}_obs.png'.format(j)))
+        # plt.scatter(action_idx[0, 1], action_idx[0, 0], c='r')
+        plt.savefig(os.path.join('/home/dian/Documents/obs', '{}_obs.png'.format(j)))
         plt.show()
 
         # plotQMaps(q_map, '/home/dian/Documents/qmap', j)
         # plotQMaps(q_map)
         plt.imshow(q_map[0])
         plt.scatter(action_idx[0, 1], action_idx[0, 0], c='r')
+        plt.axis('off')
+        plt.savefig(os.path.join('/home/dian/Documents/qmap', '{}_qmap.png'.format(j)))
         plt.show()
         # pixels = action_idx[:, :2]
         # patch = agent.getImgPatch(obs, pixels)
