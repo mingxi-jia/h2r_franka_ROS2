@@ -31,6 +31,8 @@ from agents.hierarchy.dqn_3l_max_shared import DQN3LMaxShared
 from agents.hierarchy.dqn_3l_rz_rxz import DQN3LMaxSharedRzRxZ
 from agents.hierarchy.margin_3l_max_shared import Margin3LMaxShared
 from agents.hierarchy.margin_3l_rz_rxz import Margin3LMaxSharedRzRxZ
+from agents.hierarchy.dqn_3l_6d import DQN3L6DMaxShared
+
 from src.utils.parameters_x import *
 
 from src.utils import torch_utils
@@ -295,6 +297,22 @@ def creatAgent():
             agent = DQN3LMaxShared(fcn, q2, q3, action_space, workspace, heightmap_resolution, device, lr, gamma,
                                    num_primitives, sl, buffer_type == 'per', num_rotations, half_rotation,
                                    patch_size, num_zs, min_z, max_z)
+        elif action_sequence == 'xyzrrrp':
+            q2_output_size = num_primitives * num_rotations * num_zs
+            q3_output_size = num_primitives * num_rx * num_rx
+            q2_input_shape = (patch_channel + 1, patch_size, patch_size)
+            q3_input_shape = (patch_channel + 3, patch_size, patch_size)
+            q2 = CNNResShared(q2_input_shape, q2_output_size).to(device)
+            q3 = CNNResShared(q3_input_shape, q3_output_size).to(device)
+            if half_rotation:
+                rz_range = (0, (num_rotations - 1) * np.pi / num_rotations)
+            else:
+                rz_range = (0, (num_rotations - 1) * 2 * np.pi / num_rotations)
+            agent = DQN3L6DMaxShared(fcn, q2, q3, action_space, workspace, heightmap_resolution, device, lr, gamma,
+                                     num_primitives,
+                                     patch_size, sl, buffer_type == 'per', num_rotations, rz_range, num_rx,
+                                     (min_rx, max_rx),
+                                     num_rx, (min_rx, max_rx), num_zs, (min_z, max_z))
 
     elif alg == 'margin_hier_max_shared_3l':
         if action_sequence == 'xyzrrp':
@@ -371,7 +389,7 @@ if __name__ == '__main__':
     rospy.init_node('image_proxy')
 
     global model, alg, action_sequence, in_hand_mode, workspace, max_z, min_z
-    ws_center = [-0.524, -0.0098, -0.09]
+    ws_center = [-0.524, -0.0098, -0.092]
     workspace = np.asarray([[ws_center[0]-0.15, ws_center[0]+0.15],
                             [ws_center[1]-0.15, ws_center[1]+0.15],
                             [ws_center[2], 0.50]])
@@ -379,10 +397,11 @@ if __name__ == '__main__':
     min_z = 0.02
     # model = 'dfpyramid'
     model = 'resucat'
-    alg = 'margin_hier_max_shared_3l'
-    action_sequence = 'xyzrrp'
+    alg = 'dqn_hier_max_shared_3l'
+    action_sequence = 'xyzrrrp'
     in_hand_mode = 'proj'
     agent = creatAgent()
+    agent.q3_input = 'proj'
     # pre = '/home/dian/Downloads/dqfd/snapshot_house_building_3'
     # pre = '/home/dian/Downloads/dqfd/snapshot_house_building_2'
     # pre = '/home/dian/Downloads/dqfd/snapshot_house_building_1'
@@ -400,7 +419,11 @@ if __name__ == '__main__':
     # pre = '/home/dian/Downloads/imh6_3/models/snapshot_tilt_improvise_house_building_6'
     # pre = '/home/dian/Downloads/imh2_2_sdqfd_perlin/models/snapshot_tilt_improvise_house_building_2'
     # pre = '/home/dian/Downloads/imh2_4_tmp/models/snapshot_tilt_improvise_house_building_2'
-    pre = '/home/dian/Downloads/imh6_4_tmp/models/snapshot_tilt_improvise_house_building_6'
+    # pre = '/home/dian/Downloads/imh6_4_tmp/models/snapshot_tilt_improvise_house_building_6'
+
+    # pre = '/home/dian/Downloads/h3_6d/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/h4_6d/3/snapshot_tilt_house_building_4'
+    pre = '/home/dian/Downloads/4h1_6d/1/models/snapshot_tilt_house_building_1'
 
     agent.loadModel(pre)
     agent.eval()
@@ -419,9 +442,9 @@ if __name__ == '__main__':
         state = torch.tensor([env.ur5.holding_state], dtype=torch.float32)
         q_map, action_idx, action = agent.getEGreedyActions(state, in_hand, obs, 0, 0)
         plt.imshow(obs[0, 0])
-        # plt.colorbar()
+        plt.colorbar()
         plt.axis('off')
-        # plt.scatter(action_idx[0, 1], action_idx[0, 0], c='r')
+        plt.scatter(action_idx[0, 1], action_idx[0, 0], c='r')
         plt.savefig(os.path.join('/home/dian/Documents/obs', '{}_obs.png'.format(j)))
         plt.show()
 
@@ -437,10 +460,11 @@ if __name__ == '__main__':
         # action = torch.cat(action[0])
         action = [*list(map(lambda x: x.item(), action[0])), state.item()]
 
-        z_offset_threshold = -0.03 if state.item() == 0 else 0.01
+        z_offset_threshold = -0.03 if state.item() == 0 else 0.012
+        safe_region_extent = 8
         local_region = obs[0, 0,
-                       int(max(action_idx[0, 0] - 5, 0)):int(min(action_idx[0, 0] + 5, heightmap_size)),
-                       int(max(action_idx[0, 1] - 5, 0)):int(min(action_idx[0, 1] + 5, heightmap_size))]
+                       int(max(action_idx[0, 0] - safe_region_extent, 0)):int(min(action_idx[0, 0] + safe_region_extent, heightmap_size)),
+                       int(max(action_idx[0, 1] - safe_region_extent, 0)):int(min(action_idx[0, 1] + safe_region_extent, heightmap_size))]
         safe_z_pos = local_region.max() + z_offset_threshold
         if action[2] < safe_z_pos:
             print('z {} too small, clipping to {}'.format(action[2], safe_z_pos))

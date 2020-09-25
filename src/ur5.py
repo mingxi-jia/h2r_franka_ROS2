@@ -53,7 +53,7 @@ class UR5:
     def waitUntilNotMoving(self):
         while True:
             prev_joint_position = self.joint_values.copy()
-            rospy.sleep(0.5)
+            rospy.sleep(0.2)
             if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
                 break
 
@@ -131,6 +131,9 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    ur5.moveToP(-0.26, -0.1, 0.3, 0, 0, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, -np.pi/6, np.pi/6, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, -np.pi/6, 0)
+    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
     # ur5.moveToP(-0.26, -0.1, 0.5, 0.3848295, 0.3588603, 0.7143543)
-    # ur5.moveToJ(ur5.home_joint_values)
+    ur5.moveToJ(ur5.home_joint_values)

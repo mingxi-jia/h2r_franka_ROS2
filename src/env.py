@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage.transform as sk_transform
 from scipy.ndimage import median_filter
-
+from utils import transformation
 
 class Env:
     def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.0015, obs_size=(90, 90),
@@ -39,8 +39,8 @@ class Env:
         self.ee_offset = 0.095
 
     def _getXYFromPixels(self, x_pixel, y_pixel):
-        x = y_pixel * self.heightmap_resolution + self.workspace[0][0]
-        y = (self.obs_size[0]-x_pixel) * self.heightmap_resolution + self.workspace[1][0]
+        x = x_pixel * self.heightmap_resolution + self.workspace[0][0]
+        y = y_pixel * self.heightmap_resolution + self.workspace[1][0]
         return x, y
 
     def _getPixelsFromXY(self, x, y):
@@ -51,8 +51,8 @@ class Env:
           - y: Y coordinate
         Returns: (x, y) in pixels corresponding to coordinates
         '''
-        y_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
-        x_pixel = self.obs_size[0] - ((y - self.workspace[1][0]) / self.heightmap_resolution)
+        x_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
+        y_pixel = (y - self.workspace[1][0]) / self.heightmap_resolution
 
         return int(x_pixel), int(y_pixel)
 
@@ -106,64 +106,46 @@ class Env:
             rx = action[rot_idx + 2]
 
         # [-pi, 0] is easier for the arm(kuka) to execute
-        while rz < -np.pi:
-            rz += np.pi
-            rx = -rx
-            ry = -ry
-        while rz > 0:
-            rz -= np.pi
-            rx = -rx
-            ry = -ry
+        # while rz < -np.pi:
+        #     rz += np.pi
+        #     rx = -rx
+        #     ry = -ry
+        # while rz > 0:
+        #     rz -= np.pi
+        #     rx = -rx
+        #     ry = -ry
         rot = (rx, ry, rz)
 
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
         obs = scipy.ndimage.median_filter(obs, 1)
-        b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
-        a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
-        b = b * a * 0.01
-        obs -= b
+        # b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
+        # a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
+        # b = b * a * 0.01
+        # obs -= b
         # obs *= 0.9
-        obs[obs < 0.007] = 0
+        # obs[obs < 0.007] = 0
         return obs
 
-    def _getPixelsFromPos(self, x, y):
-        '''
-        Get the x/y pixels on the heightmap for the given coordinates
-        Args:
-          - x: X coordinate
-          - y: Y coordinate
-        Returns: (x, y) in pixels corresponding to coordinates
-        '''
-        y_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
-        x_pixel = 90 - (y - self.workspace[1][0]) / self.heightmap_resolution
-
-        # x = (pixels[:, 1].float() * self.heightmap_resolution + self.workspace[0][0]).reshape(pixels.size(0), 1)
-        # y = ((90 - pixels[:, 0].float()) * self.heightmap_resolution + self.workspace[1][0]).reshape(pixels.size(0), 1)
-
-        return int(x_pixel), int(y_pixel)
-
     def getInHandOccupancyGridProj(self, crop, z, rot):
-        ry, rx, rz = rot
+        rx, ry, rz = rot
         # crop = zoom(crop, 2)
         crop = np.round(crop, 5)
         size = self.in_hand_size
 
-        zs = np.array([z + (size / 2 - i) * (self.heightmap_resolution) for i in range(size)])
-        zs = zs.reshape((-1, 1, 1))
-        zs = zs.repeat(size, 1).repeat(size, 2)
-        zs[zs < -(self.heightmap_resolution)] = 100
-        c = crop.reshape(1, size, size).repeat(size, 0)
+        zs = np.array([z + (-size / 2 + i) * (self.heightmap_resolution) for i in range(size)])
+        zs = zs.reshape((1, 1, -1))
+        zs = zs.repeat(size, 0).repeat(size, 1)
+        # zs[zs<-(self.heightmap_resolution)] = 100
+        c = crop.reshape(size, size, 1).repeat(size, 2)
         ori_occupancy = c > zs
 
         # transform into points
         point = np.argwhere(ori_occupancy)
         # center
-        point = point - size / 2
-        R = np.array([[np.cos(-rx), 0, np.sin(-rx)],
-                      [0, 1, 0],
-                      [-np.sin(-rx), 0, np.cos(-rx)]])
-        point = R.dot(point.T)
+        ori_point = point - size / 2
+        R = transformation.euler_matrix(rx, ry, rz)[:3, :3].T
+        point = R.dot(ori_point.T)
         point = point + size / 2
         point = np.round(point).astype(int)
         point = point.T[(np.logical_and(0 < point.T, point.T < size)).all(1)].T
@@ -174,6 +156,11 @@ class Env:
         occupancy = np.ceil(occupancy)
 
         projection = np.stack((occupancy.sum(0), occupancy.sum(1), occupancy.sum(2)))
+        # fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        # axs[0].imshow(projection[0])
+        # axs[1].imshow(projection[1])
+        # axs[2].imshow(projection[2])
+        # fig.show()
         return projection
 
     def getInHandImage(self, heightmap, x, y, z, rot, next_heightmap):
@@ -182,7 +169,7 @@ class Env:
         heightmap = np.pad(heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
         next_heightmap = np.pad(next_heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
 
-        x, y = self._getPixelsFromPos(x, y)
+        x, y = self._getPixelsFromXY(x, y)
         x = np.clip(x, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
         y = np.clip(y, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
         x = x + int(self.in_hand_size / 2)
@@ -203,12 +190,11 @@ class Env:
             next_max = np.max(next_crop)
             crop[crop >= next_max] -= next_max
 
-        # end_effector rotate counter clockwise along z, so in hand img rotate clockwise
-        crop = sk_transform.rotate(crop, np.rad2deg(-rz))
-
         if self.in_hand_mode.find('proj') > -1:
             return self.getInHandOccupancyGridProj(crop, z, rot)
         else:
+            # end_effector rotate counter clockwise along z, so in hand img rotate clockwise
+            crop = sk_transform.rotate(crop, np.rad2deg(-rz))
             return crop.reshape((self.in_hand_size, self.in_hand_size, 1))
 
     def getHeightmap(self):
@@ -228,7 +214,7 @@ class Env:
         # resize img to obs size
         obs = skimage.transform.resize(obs, self.obs_size)
         # rotate img
-        obs = scipy.ndimage.rotate(obs, 90)
+        # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
         self.heightmap = obs.copy()
         obs = self._preProcessObs(obs)
