@@ -423,7 +423,9 @@ if __name__ == '__main__':
 
     # pre = '/home/dian/Downloads/h3_6d/snapshot_tilt_house_building_3'
     # pre = '/home/dian/Downloads/h4_6d/3/snapshot_tilt_house_building_4'
-    pre = '/home/dian/Downloads/4h1_6d/1/models/snapshot_tilt_house_building_1'
+
+    # pre = '/home/dian/Downloads/4h1_6d/1/models/snapshot_tilt_house_building_1'
+    pre = '/home/dian/Downloads/h3_6d/1/models/snapshot_tilt_house_building_3'
 
     agent.loadModel(pre)
     agent.eval()
@@ -460,8 +462,8 @@ if __name__ == '__main__':
         # action = torch.cat(action[0])
         action = [*list(map(lambda x: x.item(), action[0])), state.item()]
 
-        z_offset_threshold = -0.03 if state.item() == 0 else 0.012
-        safe_region_extent = 8
+        z_offset_threshold = -0.04 if state.item() == 0 else 0
+        safe_region_extent = 5
         local_region = obs[0, 0,
                        int(max(action_idx[0, 0] - safe_region_extent, 0)):int(min(action_idx[0, 0] + safe_region_extent, heightmap_size)),
                        int(max(action_idx[0, 1] - safe_region_extent, 0)):int(min(action_idx[0, 1] + safe_region_extent, heightmap_size))]
