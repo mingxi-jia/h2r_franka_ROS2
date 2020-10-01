@@ -32,6 +32,7 @@ from agents.hierarchy.dqn_3l_rz_rxz import DQN3LMaxSharedRzRxZ
 from agents.hierarchy.margin_3l_max_shared import Margin3LMaxShared
 from agents.hierarchy.margin_3l_rz_rxz import Margin3LMaxSharedRzRxZ
 from agents.hierarchy.dqn_3l_6d import DQN3L6DMaxShared
+from agents.hierarchy.dqn_5l import DQN5LMaxShared
 
 from src.utils.parameters_x import *
 
@@ -313,6 +314,31 @@ def creatAgent():
                                      patch_size, sl, buffer_type == 'per', num_rotations, rz_range, num_rx,
                                      (min_rx, max_rx),
                                      num_rx, (min_rx, max_rx), num_zs, (min_z, max_z))
+    elif alg == 'dqn_hier_max_shared_5l' or alg == 'dqn_5l':
+        if action_sequence != 'xyzrrrp':
+            raise NotImplementedError
+        q3_output_size = num_primitives * num_zs
+        q2_output_size = num_primitives * num_rotations
+        q4_output_size = num_primitives * num_rx
+        q5_output_size = num_primitives * num_rx
+        q2_input_shape = (patch_channel + 1, patch_size, patch_size)
+        q3_input_shape = (patch_channel + 1, patch_size, patch_size)
+        q4_input_shape = (patch_channel + 3, patch_size, patch_size)
+        q5_input_shape = (patch_channel + 3, patch_size, patch_size)
+        q2 = CNNResShared(q2_input_shape, q2_output_size).to(device)
+        q3 = CNNResShared(q3_input_shape, q3_output_size).to(device)
+        q4 = CNNResShared(q4_input_shape, q4_output_size).to(device)
+        q5 = CNNResShared(q5_input_shape, q5_output_size).to(device)
+
+        if half_rotation:
+            rz_range = (0, (num_rotations - 1) * np.pi / num_rotations)
+        else:
+            rz_range = (0, (num_rotations - 1) * 2 * np.pi / num_rotations)
+
+        agent = DQN5LMaxShared(fcn, q2, q3, q4, q5, action_space, workspace, heightmap_resolution, device, lr, gamma,
+                               num_primitives,
+                               patch_size, sl, buffer_type == 'per', num_rotations, rz_range, num_rx, (min_rx, max_rx),
+                               num_rx, (min_rx, max_rx), num_zs, (min_z, max_z))
 
     elif alg == 'margin_hier_max_shared_3l':
         if action_sequence == 'xyzrrp':
@@ -397,7 +423,7 @@ if __name__ == '__main__':
     min_z = 0.02
     # model = 'dfpyramid'
     model = 'resucat'
-    alg = 'dqn_hier_max_shared_3l'
+    alg = 'dqn_hier_max_shared_5l'
     action_sequence = 'xyzrrrp'
     in_hand_mode = 'proj'
     agent = creatAgent()
@@ -425,7 +451,9 @@ if __name__ == '__main__':
     # pre = '/home/dian/Downloads/h4_6d/3/snapshot_tilt_house_building_4'
 
     # pre = '/home/dian/Downloads/4h1_6d/1/models/snapshot_tilt_house_building_1'
-    pre = '/home/dian/Downloads/h3_6d/1/models/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/h3_6d/1/models/snapshot_tilt_house_building_3'
+    # pre = '/home/dian/Downloads/h4_6d_3/4/models/snapshot_tilt_house_building_4'
+    pre = '/home/dian/Downloads/h4_6d_5l/ran_tilt_6d_h4_sdqfd_5l_4_0928_8_14614980_2/models/snapshot_tilt_house_building_4'
 
     agent.loadModel(pre)
     agent.eval()
@@ -461,7 +489,8 @@ if __name__ == '__main__':
         # patch = agent.getImgPatch(obs, pixels)
         # action = torch.cat(action[0])
         action = [*list(map(lambda x: x.item(), action[0])), state.item()]
-
+        if action[2] <= min_z and state.item() == 0:
+            action[2] -= 0.01
         z_offset_threshold = -0.04 if state.item() == 0 else 0
         safe_region_extent = 5
         local_region = obs[0, 0,

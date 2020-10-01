@@ -118,7 +118,7 @@ class Env:
 
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
-        obs = scipy.ndimage.median_filter(obs, 1)
+        # obs = scipy.ndimage.median_filter(obs, 1)
         # b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
         # a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
         # b = b * a * 0.01
