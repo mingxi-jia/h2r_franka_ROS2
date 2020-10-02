@@ -27,7 +27,10 @@ class ImgProxy:
             self.has_image = False
             while not self.has_image:
                 rospy.sleep(0.01)
-            images.append(ros_numpy.numpify(self.msg))
+            img = ros_numpy.numpify(self.msg)
+            mask = np.isnan(img)
+            img[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), img[~mask])
+            images.append(img)
         self.image = np.mean(images, axis=0)
         # self.image = self.image[240-100:240+100, 320-100:320+100]
         # self.image[np.isnan(self.image)] = 0

@@ -453,7 +453,17 @@ if __name__ == '__main__':
     # pre = '/home/dian/Downloads/4h1_6d/1/models/snapshot_tilt_house_building_1'
     # pre = '/home/dian/Downloads/h3_6d/1/models/snapshot_tilt_house_building_3'
     # pre = '/home/dian/Downloads/h4_6d_3/4/models/snapshot_tilt_house_building_4'
-    pre = '/home/dian/Downloads/h4_6d_5l/ran_tilt_6d_h4_sdqfd_5l_4_0928_8_14614980_2/models/snapshot_tilt_house_building_4'
+    # pre = '/home/dian/Downloads/h4_6d_5l/ran_tilt_6d_h4_sdqfd_5l_4_0928_8_14614980_2/models/snapshot_tilt_house_building_4'
+
+    # pre = '/home/dian/Downloads/4h1_6d_5l/ran_tilt_6d_4h1_sdqfd_5l_0930_6_14615014_2/models/snapshot_tilt_house_building_1'
+    # pre = '/home/dian/Downloads/4h1_6d_5l/ran_tilt_6d_4h1_sdqfd_5l_0930_6_14615014_1/models/snapshot_tilt_house_building_1'
+
+    # pre = '/home/dian/Downloads/h3_6d_5l/ran_tilt_6d_h3_sdqfd_5l_0930_6_14615033_1/models/snapshot_tilt_house_building_3'
+
+    # pre = '/home/dian/Downloads/imh2_6d_5l/ran_tilt_6d_imh2_sdqfd_5l_0930_6_14624021_1/models/snapshot_tilt_improvise_house_building_2'
+
+    pre = '/home/dian/Downloads/imh6_6d_5l/ran_tilt_6d_imh6_sdqfd_5l_0930_6_14624028_2/models/snapshot_tilt_improvise_house_building_6'
+    # pre = '/home/dian/Downloads/imh6_6d_5l/ran_tilt_6d_imh6_sdqfd_5l_0930_6_14624028_1/models/snapshot_tilt_improvise_house_building_6'
 
     agent.loadModel(pre)
     agent.eval()

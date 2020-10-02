@@ -121,7 +121,7 @@ class UR5:
         pre_pos[2] += self.pick_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.openGripper()
+        self.gripper.openGripper(speed=100)
         rospy.sleep(1)
         self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
