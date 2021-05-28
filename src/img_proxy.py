@@ -5,7 +5,7 @@ import ros_numpy
 import numpy as np
 import matplotlib.pyplot as plt
 
-import skimage
+import skimage.transform
 # import scipy
 
 class ImgProxy:
@@ -39,16 +39,18 @@ class ImgProxy:
         return self.image
 
 def main():
+    plt.style.use('grayscale')
     rospy.init_node('image_proxy')
     imgProxy = ImgProxy()
     while True:
         obs = imgProxy.getImage()
         obs = obs[240 - 100:240 + 100, 320 - 100:320 + 100]
         obs[np.isnan(obs)] = 0
+        # obs = skimage.transform.rotate(obs, 90)
         obs = -obs
         obs -= obs.min()
-        obs = skimage.transform.resize(obs, (90, 90))
-        obs = obs[45-5:45+5, 45-5:45+5]
+        # obs = skimage.transform.resize(obs, (90, 90))
+        obs = obs[100-10:100+10, 100-10:100+10]
         plt.imshow(obs)
         plt.colorbar()
         plt.show()

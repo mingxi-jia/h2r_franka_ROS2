@@ -2,7 +2,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 import rospy
 import numpy as np
-from robotiq_gripper import Gripper
+from src.robotiq_gripper import Gripper
 from src.utils.rpy_to_rot_vector import rpyToRotVector
 # from src.tf_proxy import TFProxy
 import src.utils.transformation as transformation
@@ -13,7 +13,7 @@ class UR5:
         self.gripper.reset()
         self.gripper.activate()
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
-        self.home_joint_values = [-0.03911955, -2.14088709, 2.0448904, -1.4727586, -1.55525238, -1.61120922]
+        self.home_joint_values = [-0.2702291647540491, -1.9751384894000452, 2.164391040802002, -1.7615483442889612, -1.5696070829974573, -0.27098161378969365]
 
         self.joint_names_speedj = ['shoulder_pan_joint', 'shoulder_lift_joint',
                                    'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
@@ -131,9 +131,14 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    ur5.moveToP(-0.26, -0.1, 0.3, -np.pi/6, np.pi/6, 0)
-    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
-    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, -np.pi/6, 0)
-    ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
+    ur5.moveToHome()
+    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, 0)
+    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/4)
+    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/2)
+    print(1)
+    # ur5.moveToP(-0.26, -0.1, 0.3, -np.pi/6, np.pi/6, 0)
+    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
+    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, -np.pi/6, 0)
+    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
     # ur5.moveToP(-0.26, -0.1, 0.5, 0.3848295, 0.3588603, 0.7143543)
-    ur5.moveToJ(ur5.home_joint_values)
+    # ur5.moveToJ(ur5.home_joint_values)

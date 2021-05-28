@@ -415,7 +415,7 @@ if __name__ == '__main__':
     rospy.init_node('image_proxy')
 
     global model, alg, action_sequence, in_hand_mode, workspace, max_z, min_z
-    ws_center = [-0.524, -0.0098, -0.092]
+    ws_center = [-0.5539, 0.0298, -0.1625]
     workspace = np.asarray([[ws_center[0]-0.15, ws_center[0]+0.15],
                             [ws_center[1]-0.15, ws_center[1]+0.15],
                             [ws_center[2], 0.50]])

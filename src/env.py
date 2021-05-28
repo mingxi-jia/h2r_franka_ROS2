@@ -8,11 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage.transform as sk_transform
 from scipy.ndimage import median_filter
-from utils import transformation
+from src.utils import transformation
 
 class Env:
-    def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.0015, obs_size=(90, 90),
-                 action_sequence='pxyr'):
+    def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.00166, obs_size=(90, 90),
+                 action_sequence='pxyr', in_hand_mode='proj'):
         self.ws_center = ws_center
         self.ws_x = ws_x
         self.ws_y = ws_y
@@ -33,8 +33,8 @@ class Env:
         self.PLACE_PRIMATIVE = 1
 
         self.in_hand_size = 24
-        self.heightmap_size = 90
-        self.in_hand_mode = 'proj'
+        self.heightmap_size = obs_size[0]
+        self.in_hand_mode = in_hand_mode
 
         self.ee_offset = 0.095
 
@@ -73,6 +73,7 @@ class Env:
                                       int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
         safe_z_pos = np.max(local_region) + self.workspace[2][0]
         safe_z_pos = safe_z_pos - 0.04 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos - 0.006
+        safe_z_pos = max(safe_z_pos, self.workspace[2][0])
 
         return safe_z_pos
 
@@ -195,7 +196,7 @@ class Env:
         else:
             # end_effector rotate counter clockwise along z, so in hand img rotate clockwise
             crop = sk_transform.rotate(crop, np.rad2deg(-rz))
-            return crop.reshape((self.in_hand_size, self.in_hand_size, 1))
+            return crop.reshape(1, self.in_hand_size, self.in_hand_size)
 
     def getHeightmap(self):
         # get img from camera
@@ -214,12 +215,12 @@ class Env:
         # resize img to obs size
         obs = skimage.transform.resize(obs, self.obs_size)
         # rotate img
-        # obs = scipy.ndimage.rotate(obs, 180)
+        obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
-        self.heightmap = obs.copy()
+        # self.heightmap = obs.copy()
         obs = self._preProcessObs(obs)
-        obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
-        return torch.tensor(obs).to(torch.float32)
+        # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
+        return obs
 
     def getEmptyInHand(self):
         if self.in_hand_mode.find('proj') > -1:
@@ -236,9 +237,11 @@ class Env:
         else:
             motion_primative, x, y, z, rot = self._decodeAction(action)
             z -= self.ws_center[2]
-            in_hand_img = self.getInHandImage(old_heightmap[0, 0], x, y, z, rot, self.heightmap[0, 0])
+            in_hand_img = self.getInHandImage(old_heightmap, x, y, z, rot, self.heightmap)
         in_hand_img = in_hand_img.reshape(1, in_hand_img.shape[0], in_hand_img.shape[1], in_hand_img.shape[2])
-        return self.heightmap, torch.tensor(in_hand_img).to(torch.float32)
+        heightmap = self.heightmap.reshape(1, 1, self.heightmap.shape[0], self.heightmap.shape[1])
+
+        return torch.tensor(heightmap).to(torch.float32), torch.tensor(in_hand_img).to(torch.float32)
 
     def step(self, action):
         p, x, y, z, r = self._decodeAction(action)
@@ -254,3 +257,21 @@ class Env:
 
     def getSafeHeight(self, x, y):
         return self.heightmap[max(x-5, 0):min(x+5, 90), max(y-5, 0):min(y+5, 90)].max()
+
+    def plotObs(self, cam_resolution):
+        self.cam_resolution = cam_resolution
+        obs = self.getHeightmap()
+        plt.imshow(obs[0, 0])
+        plt.colorbar()
+        plt.show()
+
+if __name__ == '__main__':
+    import rospy
+    plt.style.use('grayscale')
+    rospy.init_node('image_proxy')
+    env = Env(ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90))
+    while True:
+        obs = env.getHeightmap()
+        plt.imshow(obs[0, 0])
+        plt.colorbar()
+        plt.show()
