@@ -11,7 +11,7 @@ from scipy.ndimage import median_filter
 from src.utils import transformation
 
 class Env:
-    def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.00166, obs_size=(90, 90),
+    def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
                  action_sequence='pxyr', in_hand_mode='proj'):
         self.ws_center = ws_center
         self.ws_x = ws_x
@@ -72,7 +72,7 @@ class Env:
                                       int(max(y_pixel - self.obs_size[1] / 20, 0)):
                                       int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
         safe_z_pos = np.max(local_region) + self.workspace[2][0]
-        safe_z_pos = safe_z_pos - 0.04 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos - 0.006
+        safe_z_pos = safe_z_pos - 0.04 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + 0.005
         safe_z_pos = max(safe_z_pos, self.workspace[2][0])
 
         return safe_z_pos
@@ -119,13 +119,13 @@ class Env:
 
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
-        # obs = scipy.ndimage.median_filter(obs, 1)
-        # b = np.linspace(1, 0, 90).reshape(1, 90).repeat(90, axis=0)
-        # a = np.linspace(0.5, 1, 90).reshape(1, 90).repeat(90, axis=0).T
-        # b = b * a * 0.01
-        # obs -= b
+        obs = scipy.ndimage.median_filter(obs, 1)
+        b = np.linspace(1, 0, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0)
+        # a = np.linspace(0.5, 1, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0).T
+        b = b * 0.01
+        obs -= b
         # obs *= 0.9
-        # obs[obs < 0.007] = 0
+        obs[obs < 0.007] = 0
         return obs
 
     def getInHandOccupancyGridProj(self, crop, z, rot):
@@ -267,11 +267,11 @@ class Env:
 
 if __name__ == '__main__':
     import rospy
-    plt.style.use('grayscale')
+    # plt.style.use('grayscale')
     rospy.init_node('image_proxy')
-    env = Env(ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90))
+    env = Env(ws_x=0.3, ws_y=0.3, cam_resolution=0.00166, obs_size=(90, 90))
     while True:
-        obs = env.getHeightmap()
+        obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, 0])
         plt.colorbar()
         plt.show()
