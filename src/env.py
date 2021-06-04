@@ -1,5 +1,6 @@
 from src.ur5 import UR5
 from src.img_proxy import ImgProxy
+from src.cloud_proxy import CloudProxy
 import skimage
 import scipy
 import torch
@@ -12,7 +13,7 @@ from src.utils import transformation
 
 class Env:
     def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
-                 action_sequence='pxyr', in_hand_mode='proj'):
+                 action_sequence='pxyr', in_hand_mode='proj', pick_offset=0.1, place_offset=0.1):
         self.ws_center = ws_center
         self.ws_x = ws_x
         self.ws_y = ws_y
@@ -24,8 +25,9 @@ class Env:
         self.action_sequence = action_sequence
         self.heightmap_resolution = ws_x / obs_size[0]
 
-        self.ur5 = UR5()
+        self.ur5 = UR5(pick_offset, place_offset)
         self.img_proxy = ImgProxy()
+        self.cloud_proxy = CloudProxy()
         self.heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
 
         # Motion primatives
@@ -37,6 +39,9 @@ class Env:
         self.in_hand_mode = in_hand_mode
 
         self.ee_offset = 0.095
+
+        self.pick_offset = 0.04
+        self.place_offset = 0.005
 
     def _getXYFromPixels(self, x_pixel, y_pixel):
         x = x_pixel * self.heightmap_resolution + self.workspace[0][0]
@@ -72,7 +77,7 @@ class Env:
                                       int(max(y_pixel - self.obs_size[1] / 20, 0)):
                                       int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
         safe_z_pos = np.max(local_region) + self.workspace[2][0]
-        safe_z_pos = safe_z_pos - 0.04 if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + 0.005
+        safe_z_pos = safe_z_pos - self.pick_offset if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + self.place_offset + 0.002
         safe_z_pos = max(safe_z_pos, self.workspace[2][0])
 
         return safe_z_pos
@@ -119,13 +124,13 @@ class Env:
 
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
-        obs = scipy.ndimage.median_filter(obs, 1)
-        b = np.linspace(1, 0, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0)
+        # obs = scipy.ndimage.median_filter(obs, 2)
+        b = np.linspace(-0.5, 0.5, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0)
         # a = np.linspace(0.5, 1, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0).T
         b = b * 0.01
-        obs -= b
+        obs += b
         # obs *= 0.9
-        obs[obs < 0.007] = 0
+        # obs[obs < 0.007] = 0
         return obs
 
     def getInHandOccupancyGridProj(self, crop, z, rot):
@@ -198,12 +203,12 @@ class Env:
             crop = sk_transform.rotate(crop, np.rad2deg(-rz))
             return crop.reshape(1, self.in_hand_size, self.in_hand_size)
 
-    def getHeightmap(self):
+    def getHeightmapOld(self):
         # get img from camera
         obs = self.img_proxy.getImage()
         # cut img base on workspace size
         pixel_range = (self.ws_x / self.cam_resolution, self.ws_y / self.cam_resolution)
-        obs = obs[240 - int(pixel_range[1]/2): 240 + int(pixel_range[1]/2),
+        obs = obs[242 - int(pixel_range[1]/2): 242 + int(pixel_range[1]/2),
                   320 - int(pixel_range[0]/2): 320 + int(pixel_range[0]/2)]
         # process nans
         mask = np.isnan(obs)
@@ -211,9 +216,27 @@ class Env:
         # reverse img s.t. table is 0
         obs = -obs
         # obs -= obs.min()
-        obs -= obs.reshape(-1)[obs.reshape(-1).argpartition(100)[:100]].mean()
+        obs -= -0.90987
         # resize img to obs size
         obs = skimage.transform.resize(obs, self.obs_size)
+        # rotate img
+        obs = scipy.ndimage.rotate(obs, 180)
+        # save obs copy
+        # self.heightmap = obs.copy()
+        obs = self._preProcessObs(obs)
+        # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
+        return obs
+
+    def getHeightmap(self):
+        # get img from camera
+        obss = []
+        for i in range(10):
+            obss.append(self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0]))
+        obs = np.median(obss, axis=0)
+        # reverse img s.t. table is 0
+        obs = -obs
+        # obs -= obs.min()
+        obs -= -0.90987
         # rotate img
         obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
@@ -247,6 +270,7 @@ class Env:
         p, x, y, z, r = self._decodeAction(action)
         if p == self.PICK_PRIMATIVE:
             self.ur5.pick(x, y, z, r)
+            self.place_offset = z - self.workspace[2, 0]
         elif p == self.PLACE_PRIMATIVE:
             self.ur5.place(x, y, z, r)
         else:
@@ -269,7 +293,7 @@ if __name__ == '__main__':
     import rospy
     # plt.style.use('grayscale')
     rospy.init_node('image_proxy')
-    env = Env(ws_x=0.3, ws_y=0.3, cam_resolution=0.00166, obs_size=(90, 90))
+    env = Env(ws_x=0.4, ws_y=0.4, obs_size=(128, 128))
     while True:
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, 0])

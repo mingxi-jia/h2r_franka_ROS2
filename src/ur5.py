@@ -8,20 +8,20 @@ from src.utils.rpy_to_rot_vector import rpyToRotVector
 import src.utils.transformation as transformation
 
 class UR5:
-    def __init__(self):
+    def __init__(self, pick_offset=0.1, place_offset=0.1):
         self.gripper = Gripper(True)
         self.gripper.reset()
         self.gripper.activate()
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
-        self.home_joint_values = [-0.2702291647540491, -1.9751384894000452, 2.164391040802002, -1.7615483442889612, -1.5696070829974573, -0.27098161378969365]
+        self.home_joint_values = [-0.394566837941305, -2.294720474873678, 2.2986323833465576, -1.5763557592975062, -1.5696309248553675, -0.3957274595843714]
 
         self.joint_names_speedj = ['shoulder_pan_joint', 'shoulder_lift_joint',
                                    'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
         self.joint_values = np.array([0] * 6)
         self.joints_sub = rospy.Subscriber("/joint_states", JointState, self.jointsCallback)
 
-        self.pick_offset = 0.1
-        self.place_offset = 0.1
+        self.pick_offset = pick_offset
+        self.place_offset = place_offset
 
         self.holding_state = 0
 
@@ -118,7 +118,7 @@ class UR5:
         T = transformation.euler_matrix(rx, ry, rz)
         pre_pos = np.array([x, y, z])
         # pre_pos += self.pick_offset * T[:3, 2]
-        pre_pos[2] += self.pick_offset
+        pre_pos[2] += self.place_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
         self.gripper.openGripper(speed=100)
@@ -132,7 +132,9 @@ if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
     ur5.moveToHome()
-    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, 0)
+    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, 0)
+    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/4)
+    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/2)
     ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/4)
     ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/2)
     print(1)

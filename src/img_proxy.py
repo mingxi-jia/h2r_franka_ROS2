@@ -10,7 +10,7 @@ import skimage.transform
 
 class ImgProxy:
     def __init__(self):
-        self.topic = '/camera/depth/image'
+        self.topic = '/camera/depth/image_rect'
         self.sub = rospy.Subscriber(self.topic, Image, self.callbackImage, queue_size=1)
         self.msg = None
         self.image = None
@@ -31,7 +31,7 @@ class ImgProxy:
             mask = np.isnan(img)
             img[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), img[~mask])
             images.append(img)
-        self.image = np.mean(images, axis=0)
+        self.image = np.median(images, axis=0)
         # self.image = self.image[240-100:240+100, 320-100:320+100]
         # self.image[np.isnan(self.image)] = 0
         # self.image = -self.image
