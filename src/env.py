@@ -12,7 +12,7 @@ from scipy.ndimage import median_filter
 from src.utils import transformation
 
 class Env:
-    def __init__(self, ws_center=(-0.5257, -0.0098, 0.095), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
+    def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
                  action_sequence='pxyr', in_hand_mode='proj', pick_offset=0.1, place_offset=0.1):
         self.ws_center = ws_center
         self.ws_x = ws_x
