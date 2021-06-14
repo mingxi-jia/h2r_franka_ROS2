@@ -69,7 +69,7 @@ class Gripper:
     self.gripperPub.publish(cmd)
     rospy.sleep(0.5)
 
-  def openGripper(self, speed=255, force=255):
+  def openGripper(self, speed=255, force=255, position=0):
     '''Open the gripper. Default values for optional arguments are set to their max.'''
 
     if not self.isMoving: return
@@ -78,11 +78,11 @@ class Gripper:
     cmd = GripperCmd()
     cmd.rACT = 1
     cmd.rGTO = 1
-    cmd.rPR = 0 # position
+    cmd.rPR = position # position
     cmd.rFR = force
     cmd.rSP = speed
     self.gripperPub.publish(cmd)
-    rospy.sleep(0.5)
+    # rospy.sleep(0.5)
 
   def isClosed(self):
     return self.status.gPO > 220

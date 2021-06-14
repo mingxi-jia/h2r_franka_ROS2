@@ -8,7 +8,7 @@ from src.utils.rpy_to_rot_vector import rpyToRotVector
 import src.utils.transformation as transformation
 
 class UR5:
-    def __init__(self, pick_offset=0.1, place_offset=0.1):
+    def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
         self.gripper = Gripper(True)
         self.gripper.reset()
         self.gripper.activate()
@@ -24,6 +24,7 @@ class UR5:
         self.place_offset = place_offset
 
         self.holding_state = 0
+        self.place_open_pos = place_open_pos
 
         # self.tf_proxy = TFProxy()
 
@@ -60,7 +61,7 @@ class UR5:
     def moveToJ(self, joint_pos):
         for _ in range(1):
             s = 'movej({}, v=2)'.format(joint_pos)
-            rospy.sleep(0.5)
+            rospy.sleep(0.2)
             self.pub.publish(s)
             self.waitUntilNotMoving()
             if np.allclose(joint_pos, self.joint_values, atol=1e-2):
@@ -80,7 +81,7 @@ class UR5:
         pose = [x, y, z, rx, ry, rz]
         for _ in range(1):
             s = 'movel(p{}, v=0.5)'.format(pose)
-            rospy.sleep(0.5)
+            rospy.sleep(0.2)
             self.pub.publish(s)
             self.waitUntilNotMoving()
             # if np.allclose(self.getEEPose()[:3], pose[:3], atol=1e-2) and np.allclose(self.getEEPose()[3:], pose[3:],  atol=1e-1):
@@ -102,7 +103,7 @@ class UR5:
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
         self.gripper.closeGripper(force=1)
-        rospy.sleep(1)
+        rospy.sleep(0.5)
         self.holding_state = 1
         if self.gripper.isClosed():
             self.gripper.openGripper()
@@ -121,10 +122,11 @@ class UR5:
         pre_pos[2] += self.place_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.openGripper(speed=100)
-        rospy.sleep(1)
+        self.gripper.openGripper(speed=100, position=self.place_open_pos)
+        rospy.sleep(0.5)
         self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
+        self.gripper.openGripper()
         self.moveToHome()
 
 
@@ -133,6 +135,8 @@ if __name__ == '__main__':
     ur5 = UR5()
     ur5.moveToHome()
     ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, 0)
+    ur5.moveToP(-0.330, -0.02, 0.149, 0, np.pi/4, 0)
+    ur5.moveToP(-0.330, -0.02, 0.149, np.pi/4, 0, 0)
     ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/4)
     ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/2)
     ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/4)

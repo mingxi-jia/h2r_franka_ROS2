@@ -26,8 +26,21 @@
     ```
     roslaunch openni2_launch openni2.launch
     ```
-
+1. Example for openni2 launch file
+   ```
+   <launch>
+  <!-- launch up sensor-->
+  <include file="$(find openni2_launch)/launch/openni2.launch">
+    <arg name="camera" value="camera_up" />
+    <arg name="device_id" value="1d27/0600@11"/>
+  </include>
+   </launch>
+   ```
 ## Troubleshooting
+1. After rebooting, gain the access for the USB port for the gripper:
+   ```
+   sudo chmod 777 /dev/ttyUSB0
+   ```
 1. Install python3 catkin packages:
    ```
    sudo apt-get install python-catkin-pkg

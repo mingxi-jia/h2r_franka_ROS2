@@ -10,10 +10,13 @@ import matplotlib.pyplot as plt
 import skimage.transform as sk_transform
 from scipy.ndimage import median_filter
 from src.utils import transformation
+from sklearn.impute import SimpleImputer
 
 class Env:
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
-                 action_sequence='pxyr', in_hand_mode='proj', pick_offset=0.1, place_offset=0.1):
+                 action_sequence='pxyr', in_hand_mode='proj', pick_offset=0.1, place_offset=0.1, in_hand_size=24,
+                 obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0):
+        assert obs_source == 'reconstruct' or 'raw'
         self.ws_center = ws_center
         self.ws_x = ws_x
         self.ws_y = ws_y
@@ -25,7 +28,7 @@ class Env:
         self.action_sequence = action_sequence
         self.heightmap_resolution = ws_x / obs_size[0]
 
-        self.ur5 = UR5(pick_offset, place_offset)
+        self.ur5 = UR5(pick_offset, place_offset, place_open_pos)
         self.img_proxy = ImgProxy()
         self.cloud_proxy = CloudProxy()
         self.heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
@@ -34,14 +37,18 @@ class Env:
         self.PICK_PRIMATIVE = 0
         self.PLACE_PRIMATIVE = 1
 
-        self.in_hand_size = 24
+        self.in_hand_size = in_hand_size
         self.heightmap_size = obs_size[0]
         self.in_hand_mode = in_hand_mode
 
         self.ee_offset = 0.095
 
-        self.pick_offset = 0.04
-        self.place_offset = 0.005
+        self.pick_offset = 0.03
+        self.place_offset_1 = 0.005
+        self.place_offset_2 = 0.002
+
+        self.obs_source = obs_source
+        self.safe_z_region = safe_z_region
 
     def _getXYFromPixels(self, x_pixel, y_pixel):
         x = x_pixel * self.heightmap_resolution + self.workspace[0][0]
@@ -72,12 +79,12 @@ class Env:
         Returns: Valid Z coordinate for the action
         '''
         x_pixel, y_pixel = self._getPixelsFromXY(x, y)
-        local_region = self.heightmap[int(max(x_pixel - self.obs_size[0] / 20, 0)):
-                                      int(min(x_pixel + self.obs_size[0] / 20, self.obs_size[0])),
-                                      int(max(y_pixel - self.obs_size[1] / 20, 0)):
-                                      int(min(y_pixel + self.obs_size[1] / 20, self.obs_size[1]))]
-        safe_z_pos = np.max(local_region) + self.workspace[2][0]
-        safe_z_pos = safe_z_pos - self.pick_offset if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + self.place_offset + 0.002
+        local_region = self.heightmap[int(max(x_pixel - self.obs_size[0] * self.safe_z_region, 0)):
+                                      int(min(x_pixel + self.obs_size[0] * self.safe_z_region, self.obs_size[0])),
+                                      int(max(y_pixel - self.obs_size[1] * self.safe_z_region, 0)):
+                                      int(min(y_pixel + self.obs_size[1] * self.safe_z_region, self.obs_size[1]))]
+        safe_z_pos = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]]) + self.workspace[2][0]
+        safe_z_pos = safe_z_pos - self.pick_offset if motion_primative == self.PICK_PRIMATIVE else safe_z_pos + self.place_offset_1 + self.place_offset_2
         safe_z_pos = max(safe_z_pos, self.workspace[2][0])
 
         return safe_z_pos
@@ -176,8 +183,6 @@ class Env:
         next_heightmap = np.pad(next_heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
 
         x, y = self._getPixelsFromXY(x, y)
-        x = np.clip(x, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
-        y = np.clip(y, self.in_hand_size / 2, self.heightmap_size - 1 - self.in_hand_size / 2)
         x = x + int(self.in_hand_size / 2)
         y = y + int(self.in_hand_size / 2)
 
@@ -203,7 +208,7 @@ class Env:
             crop = sk_transform.rotate(crop, np.rad2deg(-rz))
             return crop.reshape(1, self.in_hand_size, self.in_hand_size)
 
-    def getHeightmapOld(self):
+    def getHeightmapRaw(self):
         # get img from camera
         obs = self.img_proxy.getImage()
         # cut img base on workspace size
@@ -211,8 +216,8 @@ class Env:
         obs = obs[242 - int(pixel_range[1]/2): 242 + int(pixel_range[1]/2),
                   320 - int(pixel_range[0]/2): 320 + int(pixel_range[0]/2)]
         # process nans
-        mask = np.isnan(obs)
-        obs[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), obs[~mask])
+        imputer = SimpleImputer(missing_values=np.nan, strategy='median')
+        obs = imputer.fit_transform(obs)
         # reverse img s.t. table is 0
         obs = -obs
         # obs -= obs.min()
@@ -227,7 +232,7 @@ class Env:
         # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
         return obs
 
-    def getHeightmap(self):
+    def getHeightmapReconstruct(self):
         # get img from camera
         obss = []
         for i in range(10):
@@ -253,7 +258,10 @@ class Env:
 
     def getObs(self, action=None):
         old_heightmap = self.heightmap
-        self.heightmap = self.getHeightmap()
+        if self.obs_source == 'reconstruct':
+            self.heightmap = self.getHeightmapReconstruct()
+        else:
+            self.heightmap = self.getHeightmapRaw()
 
         if action is None or self.ur5.holding_state == False:
             in_hand_img = self.getEmptyInHand()
@@ -270,7 +278,7 @@ class Env:
         p, x, y, z, r = self._decodeAction(action)
         if p == self.PICK_PRIMATIVE:
             self.ur5.pick(x, y, z, r)
-            self.place_offset = z - self.workspace[2, 0]
+            self.place_offset_1 = z - self.workspace[2, 0]
         elif p == self.PLACE_PRIMATIVE:
             self.ur5.place(x, y, z, r)
         else:
@@ -284,7 +292,7 @@ class Env:
 
     def plotObs(self, cam_resolution):
         self.cam_resolution = cam_resolution
-        obs = self.getHeightmap()
+        obs = self.getHeightmapReconstruct()
         plt.imshow(obs[0, 0])
         plt.colorbar()
         plt.show()
