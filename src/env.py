@@ -31,6 +31,7 @@ class Env:
         self.ur5 = UR5(pick_offset, place_offset, place_open_pos)
         self.img_proxy = ImgProxy()
         self.cloud_proxy = CloudProxy()
+        self.old_heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
         self.heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
 
         # Motion primatives
@@ -43,9 +44,9 @@ class Env:
 
         self.ee_offset = 0.095
 
-        self.pick_offset = 0.03
+        self.pick_offset = 0.02
         self.place_offset_1 = 0.005
-        self.place_offset_2 = 0.002
+        self.place_offset_2 = 0.001
 
         self.obs_source = obs_source
         self.safe_z_region = safe_z_region
@@ -268,7 +269,7 @@ class Env:
         else:
             motion_primative, x, y, z, rot = self._decodeAction(action)
             z -= self.ws_center[2]
-            in_hand_img = self.getInHandImage(old_heightmap, x, y, z, rot, self.heightmap)
+            in_hand_img = self.getInHandImage(self.old_heightmap, x, y, z, rot, self.heightmap)
         in_hand_img = in_hand_img.reshape(1, in_hand_img.shape[0], in_hand_img.shape[1], in_hand_img.shape[2])
         heightmap = self.heightmap.reshape(1, 1, self.heightmap.shape[0], self.heightmap.shape[1])
 
@@ -283,6 +284,7 @@ class Env:
             self.ur5.place(x, y, z, r)
         else:
             raise NotImplementedError
+        self.old_heightmap = self.heightmap
 
     def getGripperClosed(self):
         return self.ur5.gripper.isClosed()

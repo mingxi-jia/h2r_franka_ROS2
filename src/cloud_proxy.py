@@ -51,7 +51,7 @@ class CloudProxy:
     def getProjectImg(self, target_size, img_size):
         cloud = self.getCloud()
         view_matrix = np.eye(4)
-        view_matrix[:3, 3] = [-0.007, -0.015, 0]
+        view_matrix[:3, 3] = [-0.007, -0.013, 0]
         augment = np.ones((1, cloud.shape[0]))
         pts = np.concatenate((cloud.T, augment), axis=0)
         projection_matrix = np.array([
