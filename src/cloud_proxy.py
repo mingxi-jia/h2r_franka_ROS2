@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import skimage.transform
+from skimage.transform import rotate
 # import scipy
 
 class CloudProxy:
@@ -93,14 +94,14 @@ class CloudProxy:
         # depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
         imputer = SimpleImputer(missing_values=np.nan, strategy='median')
         depth = imputer.fit_transform(depth)
-
+        depth = rotate(depth, 90)
         return depth
 
 def main():
     rospy.init_node('test')
     cloudProxy = CloudProxy()
     while True:
-        obs = cloudProxy.getProjectImg(0.4, 128)
+        obs = cloudProxy.getProjectImg(0.8, 128*2)
         obs = -obs
         obs -= obs.min()
         # obs = skimage.transform.resize(obs, (90, 90))

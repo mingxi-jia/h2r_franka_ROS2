@@ -209,29 +209,29 @@ class Env:
             crop = sk_transform.rotate(crop, np.rad2deg(-rz))
             return crop.reshape(1, self.in_hand_size, self.in_hand_size)
 
-    def getHeightmapRaw(self):
-        # get img from camera
-        obs = self.img_proxy.getImage()
-        # cut img base on workspace size
-        pixel_range = (self.ws_x / self.cam_resolution, self.ws_y / self.cam_resolution)
-        obs = obs[242 - int(pixel_range[1]/2): 242 + int(pixel_range[1]/2),
-                  320 - int(pixel_range[0]/2): 320 + int(pixel_range[0]/2)]
-        # process nans
-        imputer = SimpleImputer(missing_values=np.nan, strategy='median')
-        obs = imputer.fit_transform(obs)
-        # reverse img s.t. table is 0
-        obs = -obs
-        # obs -= obs.min()
-        obs -= -0.90987
-        # resize img to obs size
-        obs = skimage.transform.resize(obs, self.obs_size)
-        # rotate img
-        obs = scipy.ndimage.rotate(obs, 180)
-        # save obs copy
-        # self.heightmap = obs.copy()
-        obs = self._preProcessObs(obs)
-        # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
-        return obs
+    # def getHeightmapRaw(self):
+    #     # get img from camera
+    #     obs = self.img_proxy.getImage()
+    #     # cut img base on workspace size
+    #     pixel_range = (self.ws_x / self.cam_resolution, self.ws_y / self.cam_resolution)
+    #     obs = obs[242 - int(pixel_range[1]/2): 242 + int(pixel_range[1]/2),
+    #               320 - int(pixel_range[0]/2): 320 + int(pixel_range[0]/2)]
+    #     # process nans
+    #     imputer = SimpleImputer(missing_values=np.nan, strategy='median')
+    #     obs = imputer.fit_transform(obs)
+    #     # reverse img s.t. table is 0
+    #     obs = -obs
+    #     # obs -= obs.min()
+    #     obs -= -0.90987
+    #     # resize img to obs size
+    #     obs = skimage.transform.resize(obs, self.obs_size)
+    #     # rotate img
+    #     obs = scipy.ndimage.rotate(obs, 90)
+    #     # save obs copy
+    #     # self.heightmap = obs.copy()
+    #     obs = self._preProcessObs(obs)
+    #     # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
+    #     return obs
 
     def getHeightmapReconstruct(self):
         # get img from camera
@@ -244,7 +244,7 @@ class Env:
         # obs -= obs.min()
         obs -= -0.90987
         # rotate img
-        obs = scipy.ndimage.rotate(obs, 180)
+        # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
         # self.heightmap = obs.copy()
         obs = self._preProcessObs(obs)
@@ -303,9 +303,25 @@ if __name__ == '__main__':
     import rospy
     # plt.style.use('grayscale')
     rospy.init_node('image_proxy')
-    env = Env(ws_x=0.4, ws_y=0.4, obs_size=(128, 128))
+    # env = Env(ws_x=0.4, ws_y=0.4, obs_size=(128, 128))
+    env = Env(ws_x=0.8, ws_y=0.8, obs_size=(256, 256), obs_source='reconstruct')
     while True:
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, 0])
+        plt.plot((128, 128), (0, 255), color='r', linewidth=1)
+        plt.plot((0, 255), (145, 145), color='r', linewidth=1)
+        plt.scatter(16, 63, color='y', linewidths=1, marker='+')
+        plt.scatter(16, 143, color='y', linewidths=1, marker='+')
+        plt.scatter(96, 63, color='y', linewidths=1, marker='+')
+        plt.scatter(96, 143, color='y', linewidths=1, marker='+')
+        plt.scatter(160, 63, color='y', linewidths=1, marker='+')
+        plt.scatter(160, 143, color='y', linewidths=1, marker='+')
+        plt.scatter(240, 63, color='y', linewidths=1, marker='+')
+        plt.scatter(240, 143, color='y', linewidths=1, marker='+')
         plt.colorbar()
+        fig, axs = plt.subplots(nrows=1, ncols=2)
+        obs0 = axs[0].imshow(obs[0, 0, 63:143, 16:96])
+        fig.colorbar(obs0, ax=axs[0])
+        obs1 = axs[1].imshow(obs[0, 0, 63:143, 160:240])
+        fig.colorbar(obs1, ax=axs[1])
         plt.show()

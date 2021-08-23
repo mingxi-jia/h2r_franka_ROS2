@@ -235,8 +235,8 @@ class Arm:
       if dist < minDist:
         minDist = dist
         closestSolution = solution
-    print "Closest IK solution:", closestSolution
-    print "Current joint values:", self.jointValues
+    print("Closest IK solution:", closestSolution)
+    print("Current joint values:", self.jointValues)
     return minDist
 
   def findFarthestIKToGiven(self, solutions, jointsStart):
@@ -395,7 +395,7 @@ class Arm:
     print("Received shutdown signal ...")
 
     v = asarray(self.joint_velocities)
-    print 'arm velocities:', v
+    print('arm velocities:', v)
 
     if norm(v) >= 0.01:
       print("Arm is moving. Slowing down to avoid hard braking.")

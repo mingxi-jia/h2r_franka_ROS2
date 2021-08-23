@@ -1,8 +1,5 @@
 import os
 import sys
-import time
-import copy
-import math
 import collections
 
 import torch
@@ -40,8 +37,7 @@ from src.utils import torch_utils
 from src.utils.torch_utils import rand_perlin_2d
 
 import rospy
-from src.img_proxy import ImgProxy
-from src.env import Env
+from src.envs.env import Env
 
 Transition = collections.namedtuple('Transition', 'state obs action reward next_state next_obs done')
 ExpertTransition = collections.namedtuple('ExpertTransition', 'state obs action reward next_state next_obs done expert')

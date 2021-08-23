@@ -90,7 +90,7 @@ class UR5:
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)
 
-    def pick(self, x, y, z, r):
+    def only_pick(self, x, y, z, r):
         if self.holding_state:
             return
         rx, ry, rz = r
@@ -109,9 +109,12 @@ class UR5:
             self.gripper.openGripper()
             self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
+
+    def pick(self, x, y, z, r):
+        self.only_pick(x, y, z, r)
         self.moveToHome()
 
-    def place(self, x, y, z, r):
+    def only_place(self, x, y, z, r, return_isClosed=False):
         if not self.holding_state:
             return
         rx, ry, rz = r
@@ -122,11 +125,18 @@ class UR5:
         pre_pos[2] += self.place_offset
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
+        if return_isClosed:
+            isClosed = self.gripper.isClosed()
         self.gripper.openGripper(speed=100, position=self.place_open_pos)
         rospy.sleep(0.5)
         self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
         self.gripper.openGripper()
+        if return_isClosed:
+            return isClosed
+
+    def place(self, x, y, z, r):
+        self.only_place(x, y, z, r)
         self.moveToHome()
 
 
