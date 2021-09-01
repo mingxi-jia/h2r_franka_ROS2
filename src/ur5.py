@@ -81,6 +81,7 @@ class UR5:
         pose = [x, y, z, rx, ry, rz]
         for _ in range(1):
             s = 'movel(p{}, v=0.5)'.format(pose)
+            # s = 'movel(p{}, v=0.25)'.format(pose)
             rospy.sleep(0.2)
             self.pub.publish(s)
             self.waitUntilNotMoving()
@@ -90,7 +91,13 @@ class UR5:
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)
 
-    def only_pick(self, x, y, z, r):
+    def checkGripperState(self):
+        if self.gripper.isClosed():
+            self.gripper.openGripper()
+            self.holding_state = 0
+        return self.holding_state
+
+    def only_pick(self, x, y, z, r, check_gripper_close_when_pick=True):
         if self.holding_state:
             return
         rx, ry, rz = r
@@ -102,20 +109,26 @@ class UR5:
 
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.closeGripper(force=1)
+        self.gripper.closeGripper()
         rospy.sleep(0.5)
         self.holding_state = 1
-        if self.gripper.isClosed():
-            self.gripper.openGripper()
-            self.holding_state = 0
+        if check_gripper_close_when_pick:
+            if self.gripper.isClosed():
+                self.gripper.openGripper()
+                self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
+        if not check_gripper_close_when_pick:
+            self.gripper.closeGripper()
+            if self.gripper.isClosed():
+                self.gripper.openGripper()
+                self.holding_state = 0
 
     def pick(self, x, y, z, r):
         self.only_pick(x, y, z, r)
         self.moveToHome()
 
-    def only_place(self, x, y, z, r, return_isClosed=False):
-        if not self.holding_state:
+    def only_place(self, x, y, z, r, no_action_when_empty=True, move2_prepose=True):
+        if (not self.holding_state) and no_action_when_empty:
             return
         rx, ry, rz = r
         # rz = np.pi/2 + rz
@@ -123,17 +136,15 @@ class UR5:
         pre_pos = np.array([x, y, z])
         # pre_pos += self.pick_offset * T[:3, 2]
         pre_pos[2] += self.place_offset
-        self.moveToP(*pre_pos, rx, ry, rz)
+        if move2_prepose:
+            self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        if return_isClosed:
-            isClosed = self.gripper.isClosed()
         self.gripper.openGripper(speed=100, position=self.place_open_pos)
         rospy.sleep(0.5)
         self.holding_state = 0
-        self.moveToP(*pre_pos, rx, ry, rz)
+        if move2_prepose:
+            self.moveToP(*pre_pos, rx, ry, rz)
         self.gripper.openGripper()
-        if return_isClosed:
-            return isClosed
 
     def place(self, x, y, z, r):
         self.only_place(x, y, z, r)

@@ -85,4 +85,4 @@ class Gripper:
     # rospy.sleep(0.5)
 
   def isClosed(self):
-    return self.status.gPO > 220
+    return self.status.gPO > 215

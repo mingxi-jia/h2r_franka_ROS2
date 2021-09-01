@@ -22,7 +22,7 @@ class Env:
         self.ws_y = ws_y
         self.workspace = np.asarray([[ws_center[0] - ws_x/2, ws_center[0] + ws_x/2],
                                      [ws_center[1] - ws_y/2, ws_center[1] + ws_y/2],
-                                     [ws_center[2], ws_center[2]+0.5]])
+                                     [ws_center[2], ws_center[2]+0.4]])
         self.cam_resolution = cam_resolution
         self.obs_size = obs_size
         self.action_sequence = action_sequence
@@ -242,7 +242,8 @@ class Env:
         # reverse img s.t. table is 0
         obs = -obs
         # obs -= obs.min()
-        obs -= -0.90987
+        # obs -= -0.90987
+        obs -= -1.0268  # for daul bin setup
         # rotate img
         # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy

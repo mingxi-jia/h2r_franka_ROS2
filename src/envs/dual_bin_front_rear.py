@@ -1,68 +1,86 @@
 import numpy as np
 from src.envs.env import *
+from scipy.ndimage.interpolation import rotate
 
 class Bin():
-    def __init__(self, center_rc, center_ws, size_pixle, name=None):
+    def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, name=None):
         self.center_rc = center_rc
         self.center_ws = center_ws
-        self.size_pixle = size_pixle
+        self.size_pixel = size_pixel
+        self.action_range_pixel = action_range_pixel
+        self.inner_padding = int((size_pixel - action_range_pixel) / 2)
         self.name = name
-        self.empty_thres = 0.006
+        self.empty_thres = 0.02
 
     def GetVertexRC(self):
         '''
         get the vertexs of the bin in [row, colonm]
         '''
-        return [[int(self.center_rc[0] - self.size_pixle / 2), int(self.center_rc[1] - self.size_pixle / 2)],
-                [int(self.center_rc[0] - self.size_pixle / 2), int(self.center_rc[1] + self.size_pixle / 2)],
-                [int(self.center_rc[0] + self.size_pixle / 2), int(self.center_rc[1] - self.size_pixle / 2)],
-                [int(self.center_rc[0] + self.size_pixle / 2), int(self.center_rc[1] + self.size_pixle / 2)]]
+        return [[int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[1] - self.size_pixel / 2)],
+                [int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)],
+                [int(self.center_rc[0] + self.size_pixel / 2), int(self.center_rc[1] - self.size_pixel / 2)],
+                [int(self.center_rc[0] + self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)]]
 
     def GetRangeRC(self):
         '''
         get the vertexs of the bin in [row, colonm]
         '''
-        return [int(self.center_rc[0] - self.size_pixle / 2), int(self.center_rc[0] + self.size_pixle / 2),
-                int(self.center_rc[1] - self.size_pixle / 2), int(self.center_rc[1] + self.size_pixle / 2)]
+        return [int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[0] + self.size_pixel / 2),
+                int(self.center_rc[1] - self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)]
 
     def GetObs(self, obs):
-        pixle_range = self.GetRangeRC()
-        return obs[0, 0, pixle_range[0]:pixle_range[1], pixle_range[2]:pixle_range[3]]
+        pixel_range = self.GetRangeRC()
+        return obs[0, 0, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+
+    def GetActionWiseObs(self, obs):
+        bin_obs = self.GetObs(obs)
+
+        return bin_obs[self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
     def IsEmpty(self, obs):
-        return np.all(self.GetObs(obs) < self.empty_thres)
+        return np.all(np.asarray(self.GetActionWiseObs(obs)) < self.empty_thres)
 
 
 class DualBinFrontRear(Env):
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
-                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0):
+                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size_pixel=80):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
                        place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
 
-        self.gripper_reach = 0.05
-        # self.gripper_reach = 0.0
+        self.gripper_depth = 0.05
+        # self.gripper_depth = 0.0
         assert (ws_x / cam_size[0]) == (ws_y / cam_size[1])
         self.pixel_size = ws_x / cam_size[0]
         self.cam_size = cam_size
         self.release_z = 0.15
         left_bin_center_rc = [103, 56]  # rc: row, colonm
         right_bin_center_rc = [103, 200]
-        left_bin_center_ws = self.pixel2meter(left_bin_center_rc)
-        right_bin_center_ws = self.pixel2meter(right_bin_center_rc)
-        self.bin_size = 0.25
-        self.bin_size_pixle = 80
-        self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixle, name='left_bin')
-        self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixle, name='right_bin')
-        self.move_action = (ws_center[0], ws_center[1], 0.20 + self.workspace[2][0], (0, 0, 0))  # xyzr
+        left_bin_center_ws = self.pixel2ws(left_bin_center_rc)
+        right_bin_center_ws = self.pixel2ws(right_bin_center_rc)
+        self.action_range= 0.25  # !!! important, action safety guarantee
+        self.action_range_pixel = int(0.25 / self.pixel_size)  # !!! important, action safety guarantee
+        # self.bin_size =
+        self.bin_size_pixel = bin_size_pixel
+        self.in_hand_size = 32
+        self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel, name='left_bin')
+        self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel, name='right_bin')
+        self.move_action = ((left_bin_center_ws[0] + right_bin_center_ws[0]) / 2,
+                            (left_bin_center_ws[1] + right_bin_center_ws[1]) / 2,
+                            0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
         self.bins = [self.left_bin, self.right_bin]
         self.picking_bin_id = None
+
+    def getObs(self, action=None):
+        obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
+        return obs.clip(max=0.2), in_hand
 
     def checkWS(self):
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, 0])
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
+        plt.scatter(128, 128, color='g', linewidths=2, marker='+')
         plt.scatter(self.left_bin.center_rc[1], self.left_bin.center_rc[0], color='r', linewidths=1, marker='+')
         plt.scatter(self.right_bin.center_rc[1], self.right_bin.center_rc[0], color='r', linewidths=1, marker='+')
         left_bin_vertexs_rc = self.left_bin.GetVertexRC()
@@ -71,14 +89,14 @@ class DualBinFrontRear(Env):
             plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
         for vertex_rc in right_bin_vertexs_rc:
             plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
-        # plt.scatter(16, 63, color='y', linewidths=1, marker='+')
-        # plt.scatter(16, 143, color='y', linewidths=1, marker='+')
-        # plt.scatter(96, 63, color='y', linewidths=1, marker='+')
-        # plt.scatter(96, 143, color='y', linewidths=1, marker='+')
-        # plt.scatter(160, 63, color='y', linewidths=1, marker='+')
-        # plt.scatter(160, 143, color='y', linewidths=1, marker='+')
-        # plt.scatter(240, 63, color='y', linewidths=1, marker='+')
-        # plt.scatter(240, 143, color='y', linewidths=1, marker='+')
+        plt.scatter(16, 63, color='r', linewidths=1, marker='+')
+        plt.scatter(16, 143, color='r', linewidths=1, marker='+')
+        plt.scatter(96, 63, color='r', linewidths=1, marker='+')
+        plt.scatter(96, 143, color='r', linewidths=1, marker='+')
+        plt.scatter(160, 63, color='r', linewidths=1, marker='+')
+        plt.scatter(160, 143, color='r', linewidths=1, marker='+')
+        plt.scatter(240, 63, color='r', linewidths=1, marker='+')
+        plt.scatter(240, 143, color='r', linewidths=1, marker='+')
         plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs))
@@ -87,23 +105,63 @@ class DualBinFrontRear(Env):
         fig.colorbar(obs1, ax=axs[1])
         plt.show()
 
-    def pixel2meter(self, pixel, rc=None):
+    def pixel2ws(self, pixel, rc=None):
         if rc == 'r':  # row
-            return (pixel - self.cam_size[1] / 2) * self.pixel_size + self.ws_center[1]
+            return (pixel - self.cam_size[1] / 2) * self.pixel_size + self.ws_center[0]
         elif rc == 'c':  # colonm
-            return (pixel - self.cam_size[0] / 2) * self.pixel_size + self.ws_center[0]
+            return (pixel - self.cam_size[0] / 2) * self.pixel_size + self.ws_center[1]
         elif len(pixel) == 2: # rc
-            return [self.pixel2meter(pixel[1], 'c'), self.pixel2meter(pixel[0], 'r')]
+            return [self.pixel2ws(pixel[0], 'r'), self.pixel2ws(pixel[1], 'c')]
         raise NotImplementedError
 
     def place_action(self):
+        if not self.ur5.holding_state:
+            return (0, 0, 0, 0)
         while 1:
-            xy = np.random.normal(0, self.bin_size / 6, (2))
-            if np.all(-(self.bin_size / 2) < xy < (self.bin_size / 2)):
+            xy = np.random.normal(0, self.action_range/ 6, (2))
+            if ((-(self.action_range/ 2) < xy) & (xy < (self.action_range/ 2))).all():
                 break
-        return (xy[0], xy[1], 0.15 + self.workspace[2][0], (0, 0, 0))  # xyzr
+        rz = np.random.uniform(0, np.pi)
+        return (xy[0], xy[1], rz, 0)  # xyrp
 
-    def _getPrimativeHeight(self, motion_primative, x, y):
+    def _getPixelsFromXY(self, x, y):
+        '''
+        Get the x/y pixels on the heightmap for the given coordinates
+        Args:
+          - x: X coordinate
+          - y: Y coordinate
+        Returns: (x, y) in pixels corresponding to coordinates
+        '''
+        y_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
+        x_pixel = (y - self.workspace[1][0]) / self.heightmap_resolution
+
+        return int(x_pixel), int(y_pixel)
+
+    def isActionEmpty(self, action, hm_thres):
+        '''
+
+        :param action: input action to the env
+        :return: whether the rigion in action (a_x, a_y) is empty
+        '''
+        primative_idx, x_idx, y_idx, z_idx, rot_idx = map(lambda a: self.action_sequence.find(a),
+                                                          ['p', 'x', 'y', 'z', 'r'])
+        x = action[x_idx]
+        y = action[y_idx]
+        assert -(self.action_range/ 2) <= x <= (self.action_range/ 2) and \
+               -(self.action_range/ 2) <= y <= (self.action_range/ 2)
+        bin_center_ws = self.bins[self.picking_bin_id].center_ws
+        x += bin_center_ws[0]
+        y += bin_center_ws[1]
+        col_pixel, row_pixel = self._getPixelsFromXY(x, y)
+        local_region = self.heightmap[int(max(row_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
+                                      int(min(row_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[1])),
+                                      int(max(col_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
+                                      int(min(col_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[0]))]
+        hm_at_action = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]])
+        return hm_at_action < hm_thres
+
+
+    def _getPrimativeHeight(self, motion_primative, x, y, rz=None):
         '''
         Get the z position for the given action using the current heightmap.
         Args:
@@ -113,72 +171,152 @@ class DualBinFrontRear(Env):
           - offset: How much to offset the action along approach vector
         Returns: Valid Z coordinate for the action
         '''
-        x_pixel, y_pixel = self._getPixelsFromXY(x, y)
-        local_region = self.heightmap[int(max(x_pixel - self.cam_size[0] * self.safe_z_region, 0)):
-                                      int(min(x_pixel + self.cam_size[0] * self.safe_z_region, self.cam_size[0])),
-                                      int(max(y_pixel - self.cam_size[1] * self.safe_z_region, 0)):
-                                      int(min(y_pixel + self.cam_size[1] * self.safe_z_region, self.cam_size[1]))]
+        col_pixel, row_pixel = self._getPixelsFromXY(x, y)
+        # local_region = K.warp_affine(local_region.unsqueeze(0).unsqueeze(0),
+        #                              transform, (self.in_hand_size, self.in_hand_size),
+        #                              mode='nearest', padding_mode='border').squeeze(0).squeeze(0)
+
+
         if motion_primative == self.PICK_PRIMATIVE:
-            safe_z_pos = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]]) + \
-                         self.workspace[2][0]
-            safe_z_pos = safe_z_pos - self.gripper_reach
+            # # patch center square
+            # local_region = self.heightmap[int(max(row_pixel - self.in_hand_size * self.safe_z_region, 0)):
+            #                               int(min(row_pixel + self.in_hand_size * self.safe_z_region, self.cam_size[1])),
+            #                               int(max(col_pixel - self.in_hand_size * self.safe_z_region, 0)):
+            #                               int(min(col_pixel + self.in_hand_size * self.safe_z_region, self.cam_size[0]))]
+            # safe_z_pos = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]]) + \
+            #              self.workspace[2][0]
+            # patch_rectangular
+            local_region = self.heightmap[int(max(row_pixel - self.in_hand_size, 0)):
+                                          int(min(row_pixel + self.in_hand_size, self.cam_size[1])),
+                                          int(max(col_pixel - self.in_hand_size, 0)):
+                                          int(min(col_pixel + self.in_hand_size, self.cam_size[0]))] # local_region is x4 large as ih_img
+            # R = np.asarray([[np.cos(-rz), np.sin(-rz)],
+            #                 [-np.sin(-rz), np.cos(-rz)]])
+            local_region = rotate(local_region, angle=-rz * 180 / np.pi, reshape=False)
+            patch = local_region[(self.in_hand_size - 16):(self.in_hand_size + 16),
+                                 (self.in_hand_size - 4):(self.in_hand_size + 4)]
+            egde = patch.copy()
+            egde[5:-5] = 0
+            safe_z_pos = max(np.median(patch.flatten()[(-patch).flatten().argsort()[:20]]) - self.gripper_depth,
+                             np.median(egde.flatten()[(-egde).flatten().argsort()[:20]]) - self.gripper_depth / 1.5)
+            safe_z_pos += self.workspace[2,0]
         else:
-            safe_z_pos = self.release_z + self.workspace[2][0]
-        safe_z_pos = max(safe_z_pos, self.workspace[2][0])
+            safe_z_pos = self.release_z + self.workspace[2,0]
+        safe_z_pos = max(safe_z_pos, self.workspace[2,0])
+        safe_z_pos = min(safe_z_pos, self.workspace[2,1])
+        assert self.workspace[2][0] <= safe_z_pos <= self.workspace[2][1]
 
         return safe_z_pos
 
     def _decodeAction(self, action, bin_id):
-        p, x, y, z, r = super()._decodeAction(action)
-        assert -(self.bin_size / 2) < x < (self.bin_size / 2) and\
-               -(self.bin_size / 2) < y < (self.bin_size / 2)
+        """
+        decode input action base on self.action_sequence
+        Args:
+          action: action tensor
+
+        Returns: motion_primative, x, y, z, rot
+
+        """
+        primative_idx, x_idx, y_idx, z_idx, rot_idx = map(lambda a: self.action_sequence.find(a),
+                                                          ['p', 'x', 'y', 'z', 'r'])
+        motion_primative = action[primative_idx] if primative_idx != -1 else 0
+        x = action[x_idx]
+        y = action[y_idx]
+        assert -(self.action_range/ 2) <= x <= (self.action_range/ 2) and\
+               -(self.action_range/ 2) <= y <= (self.action_range/ 2)
         bin_center_ws = self.bins[bin_id].center_ws
+        rz, ry, rx = 0, np.pi, 0
+        if self.action_sequence.count('r') <= 1:
+            rz = action[rot_idx] if rot_idx != -1 else 0
+            ry = 0
+            rx = 0
+        elif self.action_sequence.count('r') == 2:
+            rz = action[rot_idx]
+            ry = action[rot_idx + 1]
+            rx = 0
+        elif self.action_sequence.count('r') == 3:
+            rz = action[rot_idx]
+            ry = action[rot_idx + 1]
+            rx = action[rot_idx + 2]
+        rot = (rx, ry, rz)
         x += bin_center_ws[0]
         y += bin_center_ws[1]
-        return p, x, y, z, r
+        z = action[z_idx] if z_idx != -1 else self._getPrimativeHeight(motion_primative, x, y, rz)
+
+        return motion_primative, x, y, z, rot
+
+    def reset(self):
+        cam_obs, _ = self.getObs(None)
+        if self.picking_bin_id is None:
+            for id, bin in enumerate(self.bins):
+                if not bin.IsEmpty(cam_obs):
+                    self.picking_bin_id = id
+                    break
+            if self.picking_bin_id is None:
+                raise NotImplementedError  # when both bins are empty
+
+        return torch.tensor([0], dtype=torch.float32).view(1),\
+               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
+               torch.tensor(self.bins[self.picking_bin_id].GetObs(cam_obs)
+                            .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
 
     def step(self, action):
         '''
         In this env, the agent only control pick action.
         A place action will be added by the env.
         '''
-        if self.picking_bin_id is None:
-            for bin, id in enumerate(self.bins):
-                if not bin.IsEmpty():
-                    self.picking_bin_id = id
-                    break
+        assert self.picking_bin_id is not None
         # pick
         p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
-        self.ur5.only_pick(x, y, z, r)
+        self.ur5.only_pick(x, y, z, r, check_gripper_close_when_pick=False)
+        r_action = r
         # move
         x, y, z, r = self.move_action
-        rx, ry, rz = r
+        place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+        # rx, ry, rz = place_action[-1]
+        rx, ry, rz = r_action
         self.ur5.moveToP(x, y, z, rx, ry, rz)
-
+        reward = self.ur5.checkGripperState()
         # place
-        x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-        reward = int(not self.ur5.only_place(x, y, z, r, return_isClosed=True))
+        p, x, y, z, r = place_action
+        z = self.release_z + self.workspace[2][0]
+        self.ur5.only_place(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
         self.old_heightmap = self.heightmap
-
         # Observation
-        cam_obs = self.getObs(None)
+        cam_obs, _ = self.getObs(None)
         if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
             done = True
+            # place at then center of the bin
+            p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+            z = self.release_z + self.workspace[2][0]
+            self.ur5.only_place(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+            self.old_heightmap = self.heightmap
+            cam_obs, _ = self.getObs(None)
         else:
             done = False
-        obs = self.bins[self.picking_bin_id].GetObs(cam_obs)
+        obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
 
         # move
         x, y, z, r = self.move_action
         rx, ry, rz = r
         self.ur5.moveToP(x, y, z, rx, ry, rz)
 
-        return obs, reward, done
+        return torch.tensor([0], dtype=torch.float32).view(1),\
+               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
+               torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
+               torch.tensor(reward, dtype=torch.float32).view(1),\
+               torch.tensor(done, dtype=torch.float32).view(1)
+
+    def getStepLeft(self):
+        return torch.tensor(100).view(1)
+
+    def close(self):
+        self.ur5.moveToHome()
 
 if __name__ == '__main__':
     import rospy
     rospy.init_node('image_proxy')
-    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256), obs_source='reconstruct')
+    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256), obs_source='reconstruct', bin_size_pixel=112)
     while True:
         env.checkWS()
