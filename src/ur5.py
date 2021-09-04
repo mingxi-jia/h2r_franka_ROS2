@@ -6,6 +6,7 @@ from src.robotiq_gripper import Gripper
 from src.utils.rpy_to_rot_vector import rpyToRotVector
 # from src.tf_proxy import TFProxy
 import src.utils.transformation as transformation
+import time
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
@@ -13,7 +14,8 @@ class UR5:
         self.gripper.reset()
         self.gripper.activate()
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
-        self.home_joint_values = [-0.394566837941305, -2.294720474873678, 2.2986323833465576, -1.5763557592975062, -1.5696309248553675, -0.3957274595843714]
+        self.home_joint_values = [-0.394566837941305, -2.294720474873678, 2.2986323833465576,
+                                  -1.5763557592975062,-1.5696309248553675, -0.3957274595843714]
 
         self.joint_names_speedj = ['shoulder_pan_joint', 'shoulder_lift_joint',
                                    'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
@@ -58,6 +60,13 @@ class UR5:
             if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
                 break
 
+    def waitUntilSlowMoving(self):
+        while True:
+            prev_joint_position = self.joint_values.copy()
+            rospy.sleep(0.1)
+            if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
+                break
+
     def moveToJ(self, joint_pos):
         for _ in range(1):
             s = 'movej({}, v=2)'.format(joint_pos)
@@ -69,27 +78,59 @@ class UR5:
 
 
     def moveToP(self, x, y, z, rx, ry, rz):
-        # rz = np.pi/2 + rz
-
-        # z -= 0.15
-        # T = transformation.euler_matrix(rx, ry, rz)
-        # pos = np.array([x, y, z])
-        # pos += 0.15 * T[:3, 2]
-        # x, y, z = pos
 
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
         pose = [x, y, z, rx, ry, rz]
         for _ in range(1):
             s = 'movel(p{}, v=0.5)'.format(pose)
             # s = 'movel(p{}, v=0.25)'.format(pose)
-            rospy.sleep(0.2)
+            # rospy.sleep(0.1)
             self.pub.publish(s)
             self.waitUntilNotMoving()
-            # if np.allclose(self.getEEPose()[:3], pose[:3], atol=1e-2) and np.allclose(self.getEEPose()[3:], pose[3:],  atol=1e-1):
-            #     return
+
+
+    def moveToPBlend(self, x, y, z, rx, ry, rz, blend_r=0.05):
+
+        rx, ry, rz = rpyToRotVector(rx, ry, rz)
+        pose = [x, y, z, rx, ry, rz]
+        for _ in range(1):
+            s = 'movel(p{}, v=0.5)'.format(pose)
+            # s = 'movel(p{}, v=0.25)'.format(pose)
+            # rospy.sleep(0.1)
+            self.pub.publish(s)
+            rospy.sleep(0.1)
+            self.waitUntilSlowMoving()
+
+
+    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.05):
+
+        rx, ry, rz = rpyToRotVector(rx, ry, rz)
+        pose = [x, y, z, rx, ry, rz]
+        for _ in range(1):
+            s = 'movel(p{}, v=0.5, t={})'.format(pose, t)
+            # s = 'movel(p{}, v=0.25)'.format(pose)
+            # rospy.sleep(0.1)
+            self.pub.publish(s)
+            rospy.sleep(t - t_wait_reducing)
+            # self.waitUntilSlowMoving()
+
+
+    # def moveThruPBlend(self, x, y, z, rx, ry, rz, blend_r=0.05):
+    #
+    #     rx, ry, rz = rpyToRotVector(rx, ry, rz)
+    #     pose = [x, y, z, rx, ry, rz]
+    #     for _ in range(1):
+    #         s = 'movep(p{}, v=0.1, r={})'.format(pose, blend_r)
+    #         # s = 'movel(p{}, v=0.25)'.format(pose)
+    #         rospy.sleep(0.2)
+    #         self.pub.publish(s)
+    #         rospy.sleep(0.2)
+    #         # self.waitUntilSlowMoving()
+
 
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)
+
 
     def checkGripperState(self):
         if self.gripper.isClosed():
@@ -123,6 +164,32 @@ class UR5:
                 self.gripper.openGripper()
                 self.holding_state = 0
 
+    def only_pick_fast(self, x, y, z, r, check_gripper_close_when_pick=True):
+        if self.holding_state:
+            return
+        rx, ry, rz = r
+        # rz = np.pi/2 + rz
+        T = transformation.euler_matrix(rx, ry, rz)
+        pre_pos = np.array([x, y, z])
+        # pre_pos += self.pick_offset * T[:3, 2]
+        pre_pos[2] += self.pick_offset
+
+        self.moveToPT(*pre_pos, rx, ry, rz, t=1.2)
+        self.moveToPT(x, y, z, rx, ry, rz, t=0.8, t_wait_reducing=0.2)
+        self.gripper.closeGripper()
+        rospy.sleep(0.8)
+        self.holding_state = 1
+        if check_gripper_close_when_pick:
+            if self.gripper.isClosed():
+                self.gripper.openGripper()
+                self.holding_state = 0
+        self.moveToPT(*pre_pos, rx, ry, rz, t=0.8)
+        if not check_gripper_close_when_pick:
+            self.gripper.closeGripper()
+            if self.gripper.isClosed():
+                self.gripper.openGripper()
+                self.holding_state = 0
+
     def pick(self, x, y, z, r):
         self.only_pick(x, y, z, r)
         self.moveToHome()
@@ -139,12 +206,32 @@ class UR5:
         if move2_prepose:
             self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.openGripper(speed=100, position=self.place_open_pos)
+        self.gripper.openGripper(position=self.place_open_pos)
         rospy.sleep(0.5)
         self.holding_state = 0
         if move2_prepose:
             self.moveToP(*pre_pos, rx, ry, rz)
         self.gripper.openGripper()
+
+    def only_place_fast(self, x, y, z, r, no_action_when_empty=True, move2_prepose=True):
+        if (not self.holding_state) and no_action_when_empty:
+            return
+        rx, ry, rz = r
+        # rz = np.pi/2 + rz
+        T = transformation.euler_matrix(rx, ry, rz)
+        pre_pos = np.array([x, y, z])
+        # pre_pos += self.pick_offset * T[:3, 2]
+        pre_pos[2] += self.place_offset
+        if move2_prepose:
+            self.moveToP(*pre_pos, rx, ry, rz)
+        self.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
+        # self.gripper.openGripper(position=self.place_open_pos)
+        self.gripper.openGripper()
+        rospy.sleep(0.2)
+        self.holding_state = 0
+        if move2_prepose:
+            self.moveToP(*pre_pos, rx, ry, rz)
+        # self.gripper.openGripper()
 
     def place(self, x, y, z, r):
         self.only_place(x, y, z, r)
@@ -155,17 +242,121 @@ if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
     ur5.moveToHome()
-    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, 0)
-    ur5.moveToP(-0.330, -0.02, 0.149, 0, np.pi/4, 0)
-    ur5.moveToP(-0.330, -0.02, 0.149, np.pi/4, 0, 0)
-    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/4)
-    ur5.moveToP(-0.330, -0.02, 0.149, 0, 0, np.pi/2)
-    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/4)
-    ur5.moveToP(-0.527, -0.02, 0.08, 0, 0, np.pi/2)
-    print(1)
-    # ur5.moveToP(-0.26, -0.1, 0.3, -np.pi/6, np.pi/6, 0)
-    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
-    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, -np.pi/6, 0)
-    # ur5.moveToP(-0.26, -0.1, 0.3, np.pi/6, np.pi/6, 0)
-    # ur5.moveToP(-0.26, -0.1, 0.5, 0.3848295, 0.3588603, 0.7143543)
-    # ur5.moveToJ(ur5.home_joint_values)
+    pick_place_offset = 0.1
+    pick_place_height = 0.25
+
+    # while True: # 10.74s
+    #     time_mark = time.time()
+    #     # pick
+    #     ur5.moveToP(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+    #     ur5.gripper.closeGripper()
+    #     rospy.sleep(0.5)
+    #     ur5.moveToP(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     # move
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     # place
+    #     ur5.moveToP(-0.434, 0.275, 0.05, 0, 0, 1.57)
+    #     ur5.gripper.openGripper()
+    #     rospy.sleep(0.5)
+    #     # ready pose
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     print('time used {:.2f}s'.format(time.time() - time_mark))
+    #     time_mark = time.time()
+
+    # while True: # 8.94s frequent checking speed and then sending next waypoint
+    #     time_mark = time.time()
+    #     # pick
+    #     ur5.moveToPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+    #     ur5.gripper.closeGripper()
+    #     rospy.sleep(0.5)
+    #     ur5.moveToPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     # move
+    #     ur5.moveToPBlend(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     # place
+    #     ur5.moveToP(-0.434, 0.275, 0.05, 0, 0, 1.57)
+    #     ur5.gripper.openGripper()
+    #     rospy.sleep(0.2)
+    #     # ready pose
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     print('time used {:.2f}s'.format(time.time() - time_mark))
+    #     time_mark = time.time()
+
+    while True: # 7.11s time control
+        time_mark = time.time()
+        # pick
+        ur5.moveToPT(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0, t=1.2)
+        # ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+        ur5.moveToPT(-0.434, -0.18, -0.1, 0, 0, 0, t=0.8, t_wait_reducing=0.3)
+        ur5.gripper.closeGripper()
+        rospy.sleep(0.5)
+        ur5.moveToPT(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0, t=0.8)
+        # move
+        ur5.moveToPT(-0.434, 0.045, 0.15, 0, 0, 0, t=1.2)
+        # place
+        ur5.moveToPT(-0.434, 0.275, 0.05, 0, 0, 1.57, t=1, t_wait_reducing=0.6)
+        ur5.gripper.openGripper()
+        rospy.sleep(0.6)
+        # ready pose
+        ur5.moveToPT(-0.434, 0.045, 0.15, 0, 0, 0, t=1)
+        print('time used {:.2f}s'.format(time.time() - time_mark))
+        time_mark = time.time()
+
+    # while True: # 9.93s sudden stops
+    #     time_mark = time.time()
+    #     # pick
+    #     ur5.moveToP(-0.434, -0.18, -0.1 + pick_place_height, 0, 0, 0)
+    #     ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+    #     ur5.gripper.closeGripper()
+    #     rospy.sleep(0.5)
+    #     ur5.moveToP(-0.434, -0.18, -0.1 + pick_place_height, 0, 0, 0)
+    #     # # move
+    #     # ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     # place
+    #     ur5.moveToP(-0.434, 0.275, 0.05, 0, 0, 1.57)
+    #     ur5.gripper.openGripper()
+    #     rospy.sleep(0.5)
+    #     # ready pose
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     print('time used {:.2f}s'.format(time.time() - time_mark))
+    #     time_mark = time.time()
+
+    # while True: #18s
+    #     time_mark = time.time()
+    #     # pick
+    #     ur5.moveToPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+    #     ur5.gripper.closeGripper()
+    #     rospy.sleep(0.5)
+    #     ur5.moveToPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     # move
+    #     ur5.moveToPBlend(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     # place
+    #     ur5.moveToP(-0.434, 0.275, 0.05, 0, 0, 1.57)
+    #     ur5.gripper.openGripper()
+    #     rospy.sleep(0.5)
+    #     # ready pose
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     print('time used {:.2f}s'.format(time.time() - time_mark))
+    #     time_mark = time.time()
+
+    # while True: #18s
+    #     time_mark = time.time()
+    #     # pick
+    #     ur5.moveThruPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     ur5.moveToP(-0.434, -0.18, -0.1, 0, 0, 0)
+    #     ur5.gripper.closeGripper()
+    #     rospy.sleep(0.5)
+    #     ur5.moveThruPBlend(-0.434, -0.18, -0.1 + pick_place_offset, 0, 0, 0)
+    #     # move
+    #     ur5.moveThruPBlend(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     # place
+    #     ur5.moveToP(-0.434, 0.275, 0.05, 0, 0, 1.57)
+    #     ur5.gripper.openGripper()
+    #     rospy.sleep(0.5)
+    #     # ready pose
+    #     ur5.moveToP(-0.434, 0.045, 0.15, 0, 0, 0)
+    #     print('time used {:.2f}s'.format(time.time() - time_mark))
+    #     time_mark = time.time()
+
