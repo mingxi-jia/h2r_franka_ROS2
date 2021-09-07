@@ -1,6 +1,10 @@
+import logging
+
 import numpy as np
 from src.envs.env import *
 from scipy.ndimage.interpolation import rotate
+import rospy
+
 
 class Bin():
     def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, name=None):
@@ -49,7 +53,7 @@ class DualBinFrontRear(Env):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
                        place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
 
-        self.gripper_depth = 0.04
+        self.gripper_depth = 0.05
         # self.gripper_depth = 0.0
         assert (ws_x / cam_size[0]) == (ws_y / cam_size[1])
         self.pixel_size = ws_x / cam_size[0]
@@ -71,6 +75,15 @@ class DualBinFrontRear(Env):
                             0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
         self.bins = [self.left_bin, self.right_bin]
         self.picking_bin_id = None
+        self.r_action = None
+
+        self.State = None
+        self.Reward = None
+        self.Action = None
+        self.Request = None
+        self.IsRobotReady = None
+        self.SENTINEL = None
+
 
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
@@ -198,8 +211,8 @@ class DualBinFrontRear(Env):
                                  (self.in_hand_size - 4):(self.in_hand_size + 4)]
             egde = patch.copy()
             egde[5:-5] = 0
-            safe_z_pos = max(np.median(patch.flatten()[(-patch).flatten().argsort()[:20]]) - self.gripper_depth,
-                             np.median(egde.flatten()[(-egde).flatten().argsort()[:20]]) - self.gripper_depth / 1.5)
+            safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
+                             np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
             safe_z_pos += self.workspace[2,0]
         else:
             safe_z_pos = self.release_z + self.workspace[2,0]
@@ -309,6 +322,137 @@ class DualBinFrontRear(Env):
     #            torch.tensor(reward, dtype=torch.float32).view(1),\
     #            torch.tensor(done, dtype=torch.float32).view(1)
 
+    def p_reset(self):
+        all_state = self.reset()
+        logging.debug('get obs')
+        self.State.set_var('reset', all_state)
+        self.IsRobotReady.set_var('reset', True)
+
+    def p_sensor_processing(self):
+        while True:
+            # Observation
+            logging.debug('about to get request')
+            request = self.Request.get_var('sensor_processing')
+            logging.debug('got request')
+            if request is self.SENTINEL:
+                break
+            cam_obs, _ = self.getObs(None)
+            if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
+                self.IsRobotReady.get_var('sensor_processing')
+                self.picking_bin_id = (self.picking_bin_id + 1) % 2
+                done = True
+                self.p_place_move_center(is_request=True)
+            else:
+                done = False
+                obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
+                logging.debug('got obs')
+                all_state = (torch.tensor([0], dtype=torch.float32).view(1), \
+                             torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
+                             torch.tensor(obs, dtype=torch.float32).to(torch.float32))
+                self.State.set_var('sensor_processing', all_state)
+        print('sensor_processing killed')
+
+    def p_picking(self, action):
+        logging.debug('pick at: ', action)
+        assert self.picking_bin_id is not None
+        # pick
+        p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
+        self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
+        self.r_action = r
+        logging.debug('finished picking')
+
+    def p_move_reward(self):
+        # move
+        x, y, z, r = self.move_action
+        # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+        # rx, ry, rz = place_action[-1]
+        rx, ry, rz = self.r_action
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
+        reward = self.ur5.checkGripperState()
+        reward = torch.tensor(reward, dtype=torch.float32).view(1)
+        self.Reward.set_var('move_reward', reward)
+        logging.debug('moved to the center, reward: ', reward)
+
+    def p_place_move_center(self, is_request=True):
+        # place
+        p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+        z = self.release_z + self.workspace[2][0]
+        # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+
+        rx, ry, rz = r
+        # T = transformation.euler_matrix(rx, ry, rz)
+        # pre_pos = np.array([x, y, z])
+        # pre_pos += self.pick_offset * T[:3, 2]
+        # pre_pos[2] += self.place_offset
+        # if move2_prepose:
+        #     self.moveToP(*pre_pos, rx, ry, rz)
+        # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.7)
+        # self.gripper.openGripper(position=self.place_open_pos)
+        if is_request:
+            self.Request.set_var('place', 1)
+        rospy.sleep(0.3)
+        self.ur5.gripper.openGripper()
+        rospy.sleep(0.5)
+        self.ur5.holding_state = 0
+        # if move2_prepose:
+        #     self.moveToP(*pre_pos, rx, ry, rz)
+        # self.old_heightmap = self.heightmap
+
+        # move
+        x, y, z, r = self.move_action
+        rx, ry, rz = r
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+        self.IsRobotReady.set_var('place', True)
+        logging.debug('robot is ready for picking')
+
+    # def step(self, action):
+    #     '''
+    #     In this env, the agent only control pick action.
+    #     A place action will be added by the env automatically.
+    #     '''
+    #     assert self.picking_bin_id is not None
+    #     # pick
+    #     p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
+    #     self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
+    #     r_action = r
+    #     # move
+    #     x, y, z, r = self.move_action
+    #     place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+    #     # rx, ry, rz = place_action[-1]
+    #     rx, ry, rz = r_action
+    #     self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
+    #     reward = self.ur5.checkGripperState()
+    #     # place
+    #     p, x, y, z, r = place_action
+    #     z = self.release_z + self.workspace[2][0]
+    #     self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+    #     self.old_heightmap = self.heightmap
+    #     # Observation
+    #     cam_obs, _ = self.getObs(None)
+    #     if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
+    #         self.picking_bin_id = (self.picking_bin_id + 1) % 2
+    #         done = True
+    #         # place at the center of the bin
+    #         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+    #         z = self.release_z + self.workspace[2][0]
+    #         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+    #         self.old_heightmap = self.heightmap
+    #         cam_obs, _ = self.getObs(None)
+    #     else:
+    #         done = False
+    #     obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
+    #
+    #     # move
+    #     x, y, z, r = self.move_action
+    #     rx, ry, rz = r
+    #     self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+    #
+    #     return torch.tensor([0], dtype=torch.float32).view(1),\
+    #            torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
+    #            torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
+    #            torch.tensor(reward, dtype=torch.float32).view(1),\
+    #            torch.tensor(done, dtype=torch.float32).view(1)
 
     def step(self, action):
         '''
@@ -322,13 +466,13 @@ class DualBinFrontRear(Env):
         r_action = r
         # move
         x, y, z, r = self.move_action
-        place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+        # place_action =
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = r_action
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
         reward = self.ur5.checkGripperState()
         # place
-        p, x, y, z, r = place_action
+        p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         z = self.release_z + self.workspace[2][0]
         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
         self.old_heightmap = self.heightmap
@@ -337,7 +481,7 @@ class DualBinFrontRear(Env):
         if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
             done = True
-            # place at then center of the bin
+            # place at the center of the bin
             p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
             z = self.release_z + self.workspace[2][0]
             self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
@@ -357,7 +501,6 @@ class DualBinFrontRear(Env):
                torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
                torch.tensor(reward, dtype=torch.float32).view(1),\
                torch.tensor(done, dtype=torch.float32).view(1)
-
 
     def getStepLeft(self):
         return torch.tensor(100).view(1)
