@@ -59,7 +59,7 @@ class Gripper:
 
     if not self.isMoving: return
 
-    print('Closing gripper ...')
+    # print('Closing gripper ...')
     cmd = GripperCmd()
     cmd.rACT = 1
     cmd.rGTO = 1
@@ -74,7 +74,7 @@ class Gripper:
 
     if not self.isMoving: return
 
-    print('Opening gripper ...')
+    # print('Opening gripper ...')
     cmd = GripperCmd()
     cmd.rACT = 1
     cmd.rGTO = 1
@@ -85,4 +85,5 @@ class Gripper:
     # rospy.sleep(0.5)
 
   def isClosed(self):
-    return self.status.gPO > 215
+    # return self.status.gCU < 10
+    return self.status.gPO > 204

@@ -49,7 +49,8 @@ class Bin():
 class DualBinFrontRear(Env):
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
-                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size_pixel=112):
+                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size_pixel=112,
+                 z_heuristic=None):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
                        place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
 
@@ -76,6 +77,7 @@ class DualBinFrontRear(Env):
         self.bins = [self.left_bin, self.right_bin]
         self.picking_bin_id = None
         self.r_action = None
+        self.z_heuristic = z_heuristic
 
         self.State = None
         self.Reward = None
@@ -87,6 +89,7 @@ class DualBinFrontRear(Env):
 
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
+        obs[obs > 0.2] = obs.mean()
         return obs.clip(max=0.2), in_hand
 
     def checkWS(self):
@@ -130,13 +133,19 @@ class DualBinFrontRear(Env):
 
     def place_action(self):
         if not self.ur5.holding_state:
-            return (0, 0, 0, 0)
+            if self.action_sequence == 'xyrp':
+                return (0, 0, 0, 0)
+            elif self.action_sequence == 'xyzrp':
+                return (0, 0, 0, 0, 0)
         while 1:
             xy = np.random.normal(0, self.action_range/ 6, (2))
             if ((-(self.action_range/ 2) < xy) & (xy < (self.action_range/ 2))).all():
                 break
         rz = np.random.uniform(0, np.pi)
-        return (xy[0], xy[1], rz, 0)  # xyrp
+        if self.action_sequence == 'xyrp':
+            return (xy[0], xy[1], rz, 0)  # xyrp
+        elif self.action_sequence == 'xyzrp':
+            return (xy[0], xy[1], 0, rz, 0)  # xyzrp
 
     def _getPixelsFromXY(self, x, y):
         '''
@@ -175,7 +184,7 @@ class DualBinFrontRear(Env):
         return hm_at_action < hm_thres
 
 
-    def _getPrimativeHeight(self, motion_primative, x, y, rz=None):
+    def _getPrimativeHeight(self, motion_primative, x, y, rz=None, z=None):
         '''
         Get the z position for the given action using the current heightmap.
         Args:
@@ -192,27 +201,22 @@ class DualBinFrontRear(Env):
 
 
         if motion_primative == self.PICK_PRIMATIVE:
-            # # patch center square
-            # local_region = self.heightmap[int(max(row_pixel - self.in_hand_size * self.safe_z_region, 0)):
-            #                               int(min(row_pixel + self.in_hand_size * self.safe_z_region, self.cam_size[1])),
-            #                               int(max(col_pixel - self.in_hand_size * self.safe_z_region, 0)):
-            #                               int(min(col_pixel + self.in_hand_size * self.safe_z_region, self.cam_size[0]))]
-            # safe_z_pos = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]]) + \
-            #              self.workspace[2][0]
-            # patch_rectangular
             local_region = self.heightmap[int(max(row_pixel - self.in_hand_size, 0)):
                                           int(min(row_pixel + self.in_hand_size, self.cam_size[1])),
                                           int(max(col_pixel - self.in_hand_size, 0)):
                                           int(min(col_pixel + self.in_hand_size, self.cam_size[0]))] # local_region is x4 large as ih_img
-            # R = np.asarray([[np.cos(-rz), np.sin(-rz)],
-            #                 [-np.sin(-rz), np.cos(-rz)]])
+
             local_region = rotate(local_region, angle=-rz * 180 / np.pi, reshape=False)
             patch = local_region[(self.in_hand_size - 16):(self.in_hand_size + 16),
                                  (self.in_hand_size - 4):(self.in_hand_size + 4)]
-            egde = patch.copy()
-            egde[5:-5] = 0
-            safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
-                             np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
+            if z is None:
+                egde = patch.copy()
+                egde[5:-5] = 0
+                safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
+                                 np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
+            else:
+                safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) + z
+
             safe_z_pos += self.workspace[2,0]
         else:
             safe_z_pos = self.release_z + self.workspace[2,0]
@@ -255,7 +259,13 @@ class DualBinFrontRear(Env):
         rot = (rx, ry, rz)
         x += bin_center_ws[0]
         y += bin_center_ws[1]
-        z = action[z_idx] if z_idx != -1 else self._getPrimativeHeight(motion_primative, x, y, rz)
+        if self.z_heuristic == 'residual' and z_idx != -1:
+            z = self._getPrimativeHeight(motion_primative, x, y, rz, z=action[z_idx])
+        elif z_idx != -1:
+            z = action[z_idx]
+        else:
+            z = self._getPrimativeHeight(motion_primative, x, y, rz)
+        # z = action[z_idx] if z_idx != -1 else self._getPrimativeHeight(motion_primative, x, y, rz)
 
         return motion_primative, x, y, z, rot
 
@@ -348,7 +358,7 @@ class DualBinFrontRear(Env):
                 logging.debug('got obs')
                 all_state = (torch.tensor([0], dtype=torch.float32).view(1), \
                              torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
-                             torch.tensor(obs, dtype=torch.float32).to(torch.float32))
+                             obs.to(torch.float32))
                 self.State.set_var('sensor_processing', all_state)
         print('sensor_processing killed')
 
@@ -372,6 +382,7 @@ class DualBinFrontRear(Env):
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
         self.Reward.set_var('move_reward', reward)
         logging.debug('moved to the center, reward: ', reward)
+        return reward.item()
 
     def p_place_move_center(self, is_request=True):
         # place

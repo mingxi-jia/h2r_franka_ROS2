@@ -150,7 +150,7 @@ class UR5:
 
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.closeGripper()
+        self.gripper.closeGripper(force=100)
         rospy.sleep(0.5)
         self.holding_state = 1
         if check_gripper_close_when_pick:
@@ -176,7 +176,7 @@ class UR5:
 
         self.moveToPT(*pre_pos, rx, ry, rz, t=1.1)
         self.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.1)
-        self.gripper.closeGripper(force=128)
+        self.gripper.closeGripper()
         rospy.sleep(0.5)
         self.holding_state = 1
         if check_gripper_close_when_pick:
