@@ -284,54 +284,6 @@ class DualBinFrontRear(Env):
                torch.tensor(self.bins[self.picking_bin_id].GetObs(cam_obs)
                             .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
 
-    # def step(self, action):
-    #     '''
-    #     In this env, the agent only control pick action.
-    #     A place action will be added by the env automatically.
-    #     '''
-    #     assert self.picking_bin_id is not None
-    #     # pick
-    #     p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
-    #     self.ur5.only_pick(x, y, z, r, check_gripper_close_when_pick=False)
-    #     reward = self.ur5.checkGripperState()
-    #     r_action = r
-    #     # move
-    #     x, y, z, r = self.move_action
-    #     place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-    #     # rx, ry, rz = place_action[-1]
-    #     rx, ry, rz = r_action
-    #     self.ur5.moveToP(x, y, z, rx, ry, rz)
-    #     # place
-    #     p, x, y, z, r = place_action
-    #     z = self.release_z + self.workspace[2][0]
-    #     self.ur5.only_place(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #     self.old_heightmap = self.heightmap
-    #     # Observation
-    #     cam_obs, _ = self.getObs(None)
-    #     if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
-    #         self.picking_bin_id = (self.picking_bin_id + 1) % 2
-    #         done = True
-    #         # place at then center of the bin
-    #         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-    #         z = self.release_z + self.workspace[2][0]
-    #         self.ur5.only_place(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #         self.old_heightmap = self.heightmap
-    #         cam_obs, _ = self.getObs(None)
-    #     else:
-    #         done = False
-    #     obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
-    #
-    #     # move
-    #     x, y, z, r = self.move_action
-    #     rx, ry, rz = r
-    #     self.ur5.moveToP(x, y, z, rx, ry, rz)
-    #
-    #     return torch.tensor([0], dtype=torch.float32).view(1),\
-    #            torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
-    #            torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
-    #            torch.tensor(reward, dtype=torch.float32).view(1),\
-    #            torch.tensor(done, dtype=torch.float32).view(1)
-
     def p_reset(self):
         all_state = self.reset()
         logging.debug('get obs')
@@ -518,6 +470,7 @@ class DualBinFrontRear(Env):
 
     def close(self):
         self.ur5.moveToHome()
+
 
 if __name__ == '__main__':
     import rospy
