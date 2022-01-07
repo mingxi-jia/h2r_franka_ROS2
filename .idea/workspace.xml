@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="260f6658-ffdf-4281-9962-700d9245a059" name="Default Changelist" comment="debugging dual bin env, expand bin obs view">
-      <change beforePath="$PROJECT_DIR$/src/cloud_proxy.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cloud_proxy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" afterDir="false" />
-    </list>
+    <list default="true" id="260f6658-ffdf-4281-9962-700d9245a059" name="Default Changelist" comment="debugging dual bin env, expand bin obs view" />
     <list id="7e49e9af-0490-4696-beaf-b2684db1fd9e" name="implemented dual bin real world env" comment="implemented dual bin real world env" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -217,7 +214,7 @@
       <workItem from="1629751256952" duration="154000" />
       <workItem from="1629751447005" duration="345000" />
       <workItem from="1630462964391" duration="706000" />
-      <workItem from="1636304861953" duration="585000" />
+      <workItem from="1636304861953" duration="940000" />
     </task>
     <task id="LOCAL-00001" summary="changes for corl21 experiments">
       <created>1622228679936</created>
@@ -282,7 +279,14 @@
       <option name="project" value="LOCAL" />
       <updated>1630463623430</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="debugging dual bin env, expand bin obs view">
+      <created>1636305471825</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1636305471825</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -320,8 +324,8 @@
     <MESSAGE value="decrease arm sleep time; use imputer for better nan filling; add in_hand_size, obs_source, safe_z_region, place_open_pos env parameters" />
     <MESSAGE value="changes for box exp" />
     <MESSAGE value="implemented dual bin real world env" />
-    <MESSAGE value="debugging dual bin env, expand bin obs view" />
-    <option name="LAST_COMMIT_MESSAGE" value="debugging dual bin env, expand bin obs view" />
+    <MESSAGE value="kinect v2" />
+    <option name="LAST_COMMIT_MESSAGE" value="kinect v2" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
