@@ -52,7 +52,7 @@ class DualBinFrontRear(Env):
                  in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size_pixel=112,
                  z_heuristic=None):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
-                       place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
+                         place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
 
         self.gripper_depth = 0.05
         # self.gripper_depth = 0.0
@@ -64,13 +64,15 @@ class DualBinFrontRear(Env):
         right_bin_center_rc = [103, 200]
         left_bin_center_ws = self.pixel2ws(left_bin_center_rc)
         right_bin_center_ws = self.pixel2ws(right_bin_center_rc)
-        self.action_range= 0.25  # !!! important, action safety guarantee
+        self.action_range = 0.25  # !!! important, action safety guarantee
         self.action_range_pixel = int(0.25 / self.pixel_size)  # !!! important, action safety guarantee
         # self.bin_size =
         self.bin_size_pixel = bin_size_pixel
         self.in_hand_size = 32
-        self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel, name='left_bin')
-        self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel, name='right_bin')
+        self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
+                            name='left_bin')
+        self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
+                             name='right_bin')
         self.move_action = ((left_bin_center_ws[0] + right_bin_center_ws[0]) / 2,
                             (left_bin_center_ws[1] + right_bin_center_ws[1]) / 2,
                             0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
@@ -85,7 +87,6 @@ class DualBinFrontRear(Env):
         self.Request = None
         self.IsRobotReady = None
         self.SENTINEL = None
-
 
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
@@ -127,7 +128,7 @@ class DualBinFrontRear(Env):
             return (pixel - self.cam_size[1] / 2) * self.pixel_size + self.ws_center[0]
         elif rc == 'c':  # colonm
             return (pixel - self.cam_size[0] / 2) * self.pixel_size + self.ws_center[1]
-        elif len(pixel) == 2: # rc
+        elif len(pixel) == 2:  # rc
             return [self.pixel2ws(pixel[0], 'r'), self.pixel2ws(pixel[1], 'c')]
         raise NotImplementedError
 
@@ -138,8 +139,8 @@ class DualBinFrontRear(Env):
             elif self.action_sequence == 'xyzrp':
                 return (0, 0, 0, 0, 0)
         while 1:
-            xy = np.random.normal(0, self.action_range/ 6, (2))
-            if ((-(self.action_range/ 2) < xy) & (xy < (self.action_range/ 2))).all():
+            xy = np.random.normal(0, self.action_range / 6, (2))
+            if ((-(self.action_range / 2) < xy) & (xy < (self.action_range / 2))).all():
                 break
         rz = np.random.uniform(0, np.pi)
         if self.action_sequence == 'xyrp':
@@ -170,19 +171,19 @@ class DualBinFrontRear(Env):
                                                           ['p', 'x', 'y', 'z', 'r'])
         x = action[x_idx]
         y = action[y_idx]
-        assert -(self.action_range/ 2) <= x <= (self.action_range/ 2) and \
-               -(self.action_range/ 2) <= y <= (self.action_range/ 2)
+        assert -(self.action_range / 2) <= x <= (self.action_range / 2) and \
+               -(self.action_range / 2) <= y <= (self.action_range / 2)
         bin_center_ws = self.bins[self.picking_bin_id].center_ws
         x += bin_center_ws[0]
         y += bin_center_ws[1]
         col_pixel, row_pixel = self._getPixelsFromXY(x, y)
         local_region = self.heightmap[int(max(row_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
-                                      int(min(row_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[1])),
-                                      int(max(col_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
-                                      int(min(col_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[0]))]
+                                      int(min(row_pixel + self.in_hand_size * self.safe_z_region / 2,
+                                              self.cam_size[1])),
+                       int(max(col_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
+                       int(min(col_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[0]))]
         hm_at_action = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]])
         return hm_at_action < hm_thres
-
 
     def _getPrimativeHeight(self, motion_primative, x, y, rz=None, z=None):
         '''
@@ -199,16 +200,16 @@ class DualBinFrontRear(Env):
         #                              transform, (self.in_hand_size, self.in_hand_size),
         #                              mode='nearest', padding_mode='border').squeeze(0).squeeze(0)
 
-
         if motion_primative == self.PICK_PRIMATIVE:
             local_region = self.heightmap[int(max(row_pixel - self.in_hand_size, 0)):
                                           int(min(row_pixel + self.in_hand_size, self.cam_size[1])),
-                                          int(max(col_pixel - self.in_hand_size, 0)):
-                                          int(min(col_pixel + self.in_hand_size, self.cam_size[0]))] # local_region is x4 large as ih_img
+                           int(max(col_pixel - self.in_hand_size, 0)):
+                           int(min(col_pixel + self.in_hand_size,
+                                   self.cam_size[0]))]  # local_region is x4 large as ih_img
 
             local_region = rotate(local_region, angle=-rz * 180 / np.pi, reshape=False)
             patch = local_region[(self.in_hand_size - 16):(self.in_hand_size + 16),
-                                 (self.in_hand_size - 4):(self.in_hand_size + 4)]
+                    (self.in_hand_size - 4):(self.in_hand_size + 4)]
             if z is None:
                 egde = patch.copy()
                 egde[5:-5] = 0
@@ -217,11 +218,11 @@ class DualBinFrontRear(Env):
             else:
                 safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) + z
 
-            safe_z_pos += self.workspace[2,0]
+            safe_z_pos += self.workspace[2, 0]
         else:
-            safe_z_pos = self.release_z + self.workspace[2,0]
-        safe_z_pos = max(safe_z_pos, self.workspace[2,0])
-        safe_z_pos = min(safe_z_pos, self.workspace[2,1])
+            safe_z_pos = self.release_z + self.workspace[2, 0]
+        safe_z_pos = max(safe_z_pos, self.workspace[2, 0])
+        safe_z_pos = min(safe_z_pos, self.workspace[2, 1])
         assert self.workspace[2][0] <= safe_z_pos <= self.workspace[2][1]
 
         return safe_z_pos
@@ -240,8 +241,8 @@ class DualBinFrontRear(Env):
         motion_primative = action[primative_idx] if primative_idx != -1 else 0
         x = action[x_idx]
         y = action[y_idx]
-        assert -(self.action_range/ 2) <= x <= (self.action_range/ 2) and\
-               -(self.action_range/ 2) <= y <= (self.action_range/ 2)
+        assert -(self.action_range / 2) <= x <= (self.action_range / 2) and \
+               -(self.action_range / 2) <= y <= (self.action_range / 2)
         bin_center_ws = self.bins[bin_id].center_ws
         rz, ry, rx = 0, np.pi, 0
         if self.action_sequence.count('r') <= 1:
@@ -279,8 +280,8 @@ class DualBinFrontRear(Env):
             if self.picking_bin_id is None:
                 raise NotImplementedError  # when both bins are empty
 
-        return torch.tensor([0], dtype=torch.float32).view(1),\
-               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
+        return torch.tensor([0], dtype=torch.float32).view(1), \
+               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
                torch.tensor(self.bins[self.picking_bin_id].GetObs(cam_obs)
                             .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
 
@@ -306,7 +307,8 @@ class DualBinFrontRear(Env):
                 self.p_place_move_center(is_request=True)
             else:
                 done = False
-                obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
+                obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel,
+                                                                             self.bin_size_pixel)
                 logging.debug('got obs')
                 all_state = (torch.tensor([0], dtype=torch.float32).view(1), \
                              torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
@@ -369,54 +371,6 @@ class DualBinFrontRear(Env):
         self.IsRobotReady.set_var('place', True)
         logging.debug('robot is ready for picking')
 
-    # def step(self, action):
-    #     '''
-    #     In this env, the agent only control pick action.
-    #     A place action will be added by the env automatically.
-    #     '''
-    #     assert self.picking_bin_id is not None
-    #     # pick
-    #     p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
-    #     self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
-    #     r_action = r
-    #     # move
-    #     x, y, z, r = self.move_action
-    #     place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-    #     # rx, ry, rz = place_action[-1]
-    #     rx, ry, rz = r_action
-    #     self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
-    #     reward = self.ur5.checkGripperState()
-    #     # place
-    #     p, x, y, z, r = place_action
-    #     z = self.release_z + self.workspace[2][0]
-    #     self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #     self.old_heightmap = self.heightmap
-    #     # Observation
-    #     cam_obs, _ = self.getObs(None)
-    #     if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
-    #         self.picking_bin_id = (self.picking_bin_id + 1) % 2
-    #         done = True
-    #         # place at the center of the bin
-    #         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-    #         z = self.release_z + self.workspace[2][0]
-    #         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #         self.old_heightmap = self.heightmap
-    #         cam_obs, _ = self.getObs(None)
-    #     else:
-    #         done = False
-    #     obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
-    #
-    #     # move
-    #     x, y, z, r = self.move_action
-    #     rx, ry, rz = r
-    #     self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
-    #
-    #     return torch.tensor([0], dtype=torch.float32).view(1),\
-    #            torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
-    #            torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
-    #            torch.tensor(reward, dtype=torch.float32).view(1),\
-    #            torch.tensor(done, dtype=torch.float32).view(1)
-
     def step(self, action):
         '''
         In this env, the agent only control pick action.
@@ -441,7 +395,7 @@ class DualBinFrontRear(Env):
         self.old_heightmap = self.heightmap
         # Observation
         cam_obs, _ = self.getObs(None)
-        if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
+        if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
             done = True
             # place at the center of the bin
@@ -459,10 +413,10 @@ class DualBinFrontRear(Env):
         rx, ry, rz = r
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
 
-        return torch.tensor([0], dtype=torch.float32).view(1),\
-               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
-               torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
-               torch.tensor(reward, dtype=torch.float32).view(1),\
+        return torch.tensor([0], dtype=torch.float32).view(1), \
+               torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
+               torch.tensor(obs, dtype=torch.float32).to(torch.float32), \
+               torch.tensor(reward, dtype=torch.float32).view(1), \
                torch.tensor(done, dtype=torch.float32).view(1)
 
     def getStepLeft(self):
@@ -474,6 +428,7 @@ class DualBinFrontRear(Env):
 
 if __name__ == '__main__':
     import rospy
+
     rospy.init_node('image_proxy')
     env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256), obs_source='reconstruct', bin_size_pixel=112)
     while True:
