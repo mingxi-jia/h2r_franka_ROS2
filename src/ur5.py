@@ -1,15 +1,19 @@
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
+from ur_dashboard_msgs.msg import SafetyMode
+from std_srvs.srv import Trigger
 import rospy
 import numpy as np
 from src.robotiq_gripper import Gripper
 from src.utils.rpy_to_rot_vector import rpyToRotVector
-# from src.tf_proxy import TFProxy
+from src.tf_proxy import TFProxy
 import src.utils.transformation as transformation
 import time
+from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
+        self.collision_detection = CollisionDetector(max_z=10)
         self.gripper = Gripper(True)
         self.gripper.reset()
         self.gripper.activate()
@@ -28,17 +32,12 @@ class UR5:
         self.holding_state = 0
         self.place_open_pos = place_open_pos
 
-        # self.tf_proxy = TFProxy()
+        self.tf_proxy = TFProxy()
+        self.safety_mode = None
+        self.safety_mode_sub = rospy.Subscriber('/ur_hardware_interface/safety_mode', SafetyMode, self.safetyModeCallback)
+        self.release_protective_stop = rospy.ServiceProxy('/ur_hardware_interface/dashboard/unlock_protective_stop', Trigger)
 
-    # def getEEPose(self):
-    #     rTe = self.tf_proxy.lookupTransform('base_link', 'ee_link')
-    #     hTr = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-    #     eTt = np.array([[0, 0, -1, 0], [0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]]).dot(np.array([[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])).dot(np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]))
-    #     T = hTr.dot(rTe).dot(eTt)
-    #     pos = T[:3, 3]
-    #     rot = transformation.euler_from_matrix(T)
-    #
-    #     return np.concatenate((pos, rot))
+        self.safety_flag = False
 
     def jointsCallback(self, msg):
         '''Callback function for the joint_states ROS topic.'''
@@ -53,19 +52,23 @@ class UR5:
         positions_dict = jointStateToDict(msg)
         self.joint_values = np.array([positions_dict[i] for i in self.joint_names_speedj])
 
+    def safetyModeCallback(self, msg):
+        self.safety_mode = msg.mode
+
     def waitUntilNotMoving(self):
         while True:
-            prev_joint_position = self.joint_values.copy()
-            rospy.sleep(0.2)
-            if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
+            if self.is_not_moving(sleep_time=0.2):
                 break
 
     def waitUntilSlowMoving(self):
         while True:
-            prev_joint_position = self.joint_values.copy()
-            rospy.sleep(0.1)
-            if np.allclose(prev_joint_position, self.joint_values, atol=1e-3):
+            if self.is_not_moving(sleep_time=0.1):
                 break
+
+    def is_not_moving(self, threshold=1e-3, sleep_time=0.2):
+        prev_joint_position = self.joint_values.copy()
+        rospy.sleep(sleep_time)
+        return np.allclose(prev_joint_position, self.joint_values, atol=threshold)
 
     def moveToJ(self, joint_pos):
         for _ in range(1):
@@ -102,17 +105,52 @@ class UR5:
             self.waitUntilSlowMoving()
 
 
-    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.05):
-
+    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.05, with_collision_detection=False):
+        a_with_cd = 0.4
+        v_with_cd = 0.2
+        self.safety_flag = False
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
-        pose = [x, y, z, rx, ry, rz]
-        for _ in range(1):
+        if with_collision_detection:
+            with self.collision_detection as cd:
+                pose = [x, y, z, rx, ry, rz]
+                is_sent = False
+                while True:
+                    s = 'movel(p{}, a={}, v={})'.format(pose, a_with_cd, v_with_cd)
+                    # s = 'movel(p{}, v=0.25)'.format(pose)
+                    if not is_sent:
+                        self.pub.publish(s)
+                        is_sent = True
+                    rospy.sleep(0.1)
+
+                    if self.is_not_moving(sleep_time=0.2) or not cd.is_running:
+                        self.safety_flag = not cd.is_running
+                        break
+
+            if self.safety_mode == 3:
+                self.release_protective_stop()
+                self.safety_flag = True
+
+        if self.safety_flag:
+            # # If either collision or protecitve stop happened, lift z for 1 cm
+            z += 0.01
+            # pose = [x, y, z, rx, ry, rz]
+            # s = 'movel(p{}, v=0.5, t={})'.format(pose, 0.5)
+            # # s = 'movel(p{}, v=0.25)'.format(pose)
+            # # rospy.sleep(0.1)
+            # self.pub.publish(s)
+            # print('collision detected z = ', z)
+            # rospy.sleep(0.4)
+            # # self.waitUntilSlowMoving()
+
+        if not with_collision_detection:
+            pose = [x, y, z, rx, ry, rz]
             s = 'movel(p{}, v=0.5, t={})'.format(pose, t)
             # s = 'movel(p{}, v=0.25)'.format(pose)
             # rospy.sleep(0.1)
             self.pub.publish(s)
             rospy.sleep(t - t_wait_reducing)
             # self.waitUntilSlowMoving()
+
 
 
     # def moveThruPBlend(self, x, y, z, rx, ry, rz, blend_r=0.05):
@@ -175,7 +213,7 @@ class UR5:
         pre_pos[2] += self.pick_offset
 
         self.moveToPT(*pre_pos, rx, ry, rz, t=1.1)
-        self.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.1)
+        self.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.1, with_collision_detection=True)
         self.gripper.closeGripper()
         rospy.sleep(0.5)
         self.holding_state = 1
@@ -241,7 +279,15 @@ class UR5:
 if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
-    ur5.moveToHome()
+    # ur5.moveToHome()
+    ur5.gripper.closeGripper()
+    ur5.moveToPT(-0.451975, 0.273, 0.04, 0, 0, 0.7853981852531433, t=2, t_wait_reducing=0.1)
+    while True:
+        ur5.moveToPT(-0.451975, 0.273, 0.075, 0, 0, 0.7853981852531433, t=1, t_wait_reducing=-0.1)
+        # ur5.moveToPT(-0.451975, 0.273, -0.02, 0, 0, 0.7853981852531433, t=0.2, t_wait_reducing=0.05)
+        print('prepose')
+        # rospy.sleep(0.5)
+        ur5.moveToPT(-0.451975, 0.273, -0.075, 0, 0, 0.7853981852531433, with_collision_detection=True)
     pick_place_offset = 0.1
     pick_place_height = 0.25
 
