@@ -4,6 +4,7 @@ import numpy as np
 from src.envs.env import *
 from scipy.ndimage.interpolation import rotate
 import rospy
+from src.bin_constrain import ZProtect
 
 
 class Bin():
@@ -49,7 +50,7 @@ class Bin():
 class DualBinFrontRear(Env):
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
-                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size_pixel=112,
+                 in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
                  z_heuristic=None):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
                          place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
@@ -57,6 +58,7 @@ class DualBinFrontRear(Env):
         self.gripper_depth = 0.05
         # self.gripper_depth = 0.0
         assert (ws_x / cam_size[0]) == (ws_y / cam_size[1])
+        assert bin_size != 0
         self.pixel_size = ws_x / cam_size[0]
         self.cam_size = cam_size
         self.release_z = 0.2
@@ -66,7 +68,7 @@ class DualBinFrontRear(Env):
         right_bin_center_ws = self.pixel2ws(right_bin_center_rc)
         self.action_range = 0.25  # !!! important, action safety guarantee
         self.action_range_pixel = int(0.25 / self.pixel_size)  # !!! important, action safety guarantee
-        # self.bin_size =
+        # self.bin_size
         self.bin_size_pixel = bin_size_pixel
         self.in_hand_size = 32
         self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
@@ -78,8 +80,11 @@ class DualBinFrontRear(Env):
                             0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
         self.bins = [self.left_bin, self.right_bin]
         self.picking_bin_id = None
-        self.r_action = None
+        self.r_action = (0, 0, 1.571)
         self.z_heuristic = z_heuristic
+
+        # bin z protection
+        self.z_bin_constrain = ZProtect(bin_size + 0.028, None, 55, 0.1)
 
         self.State = None
         self.Reward = None
@@ -185,7 +190,7 @@ class DualBinFrontRear(Env):
         hm_at_action = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]])
         return hm_at_action < hm_thres
 
-    def _getPrimativeHeight(self, motion_primative, x, y, rz=None, z=None):
+    def _getPrimitiveHeight(self, motion_primative, x, y, rz=None, z=None, bin_z=0):
         '''
         Get the z position for the given action using the current heightmap.
         Args:
@@ -213,12 +218,14 @@ class DualBinFrontRear(Env):
             if z is None:
                 egde = patch.copy()
                 egde[5:-5] = 0
-                safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
-                                 np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
+                # safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
+                #                  np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
+                # Only safe with z collision detection
+                safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth
             else:
                 safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) + z
 
-            safe_z_pos += self.workspace[2, 0]
+            safe_z_pos = safe_z_pos + self.workspace[2, 0] + bin_z
         else:
             safe_z_pos = self.release_z + self.workspace[2, 0]
         safe_z_pos = max(safe_z_pos, self.workspace[2, 0])
@@ -241,9 +248,6 @@ class DualBinFrontRear(Env):
         motion_primative = action[primative_idx] if primative_idx != -1 else 0
         x = action[x_idx]
         y = action[y_idx]
-        assert -(self.action_range / 2) <= x <= (self.action_range / 2) and \
-               -(self.action_range / 2) <= y <= (self.action_range / 2)
-        bin_center_ws = self.bins[bin_id].center_ws
         rz, ry, rx = 0, np.pi, 0
         if self.action_sequence.count('r') <= 1:
             rz = action[rot_idx] if rot_idx != -1 else 0
@@ -258,15 +262,19 @@ class DualBinFrontRear(Env):
             ry = action[rot_idx + 1]
             rx = action[rot_idx + 2]
         rot = (rx, ry, rz)
+        bin_z = self.z_bin_constrain.z_protection_func((x, y, rz))
+        assert -(self.action_range / 2) <= x <= (self.action_range / 2) and \
+               -(self.action_range / 2) <= y <= (self.action_range / 2)
+        bin_center_ws = self.bins[bin_id].center_ws
         x += bin_center_ws[0]
         y += bin_center_ws[1]
         if self.z_heuristic == 'residual' and z_idx != -1:
-            z = self._getPrimativeHeight(motion_primative, x, y, rz, z=action[z_idx])
+            z = self._getPrimitiveHeight(motion_primative, x, y, rz, z=action[z_idx])
         elif z_idx != -1:
             z = action[z_idx]
         else:
-            z = self._getPrimativeHeight(motion_primative, x, y, rz)
-        # z = action[z_idx] if z_idx != -1 else self._getPrimativeHeight(motion_primative, x, y, rz)
+            z = self._getPrimitiveHeight(motion_primative, x, y, rz, bin_z=bin_z)
+        # z = action[z_idx] if z_idx != -1 else self._getPrimitiveHeight(motion_primative, x, y, rz)
 
         return motion_primative, x, y, z, rot
 
@@ -293,6 +301,7 @@ class DualBinFrontRear(Env):
 
     def p_sensor_processing(self):
         while True:
+            print('processing img')
             # Observation
             logging.debug('about to get request')
             request = self.Request.get_var('sensor_processing')
@@ -328,18 +337,23 @@ class DualBinFrontRear(Env):
     def p_move_reward(self):
         # move
         x, y, z, r = self.move_action
+        # Add some random noise to protect robot
+        y += np.random.uniform(-0.02, 0.02)
+        z += np.random.uniform(-0.02, 0.02)
         # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9)
         reward = self.ur5.checkGripperState()
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
-        self.Reward.set_var('move_reward', reward)
+        if self.Reward is not None:
+            self.Reward.set_var('move_reward', reward)
         logging.debug('moved to the center, reward: ', reward)
         return reward.item()
 
     def p_place_move_center(self, is_request=True):
         # place
+        print('placing')
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         z = self.release_z + self.workspace[2][0]
         # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
@@ -352,11 +366,10 @@ class DualBinFrontRear(Env):
         # if move2_prepose:
         #     self.moveToP(*pre_pos, rx, ry, rz)
         # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.7)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.5)
         # self.gripper.openGripper(position=self.place_open_pos)
         if is_request:
             self.Request.set_var('place', 1)
-        rospy.sleep(0.3)
         self.ur5.gripper.openGripper()
         rospy.sleep(0.5)
         self.ur5.holding_state = 0
@@ -367,7 +380,7 @@ class DualBinFrontRear(Env):
         # move
         x, y, z, r = self.move_action
         rx, ry, rz = r
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         self.IsRobotReady.set_var('place', True)
         logging.debug('robot is ready for picking')
 
@@ -386,7 +399,7 @@ class DualBinFrontRear(Env):
         # place_action =
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
         reward = self.ur5.checkGripperState()
         # place
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)

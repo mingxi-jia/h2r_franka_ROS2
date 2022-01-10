@@ -38,12 +38,16 @@ class CollisionDetector:
             return
         # print(msg.wrench.force.z)
 
-        if msg.wrench.force.z > self.max_z:
-            self.alarm_level += 1
-        else:
-            self.alarm_level = 0
+        # if msg.wrench.force.z > self.max_z:
+        #     self.alarm_level += 1
+        # else:
+        #     self.alarm_level = 0
 
-        if self.alarm_level >= self.max_alarm_level:
+        # if self.alarm_level >= self.max_alarm_level:
+        if msg.wrench.force.z > self.max_z:
             self.command_pub.publish(self.stop_command)
             print(msg.wrench.force.z)
             self.is_running = False
+
+        # if msg.wrench.force.z > 5:
+        #     print(msg.wrench.force.z)
