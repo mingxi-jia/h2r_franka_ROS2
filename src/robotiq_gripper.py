@@ -84,7 +84,13 @@ class Gripper:
     self.gripperPub.publish(cmd)
     # rospy.sleep(0.5)
 
-  def isClosed(self):
+  def hasObj(self):
     # return self.status.gCU < 10
-    print('checking gripper')
-    return self.status.gPO > 204
+    # return self.status.gPO > 204
+    while True:
+      if self.status.gOBJ != 0:
+        break
+      else:
+        rospy.sleep(0.05)
+
+    return self.status.gOBJ == 2 # 0 is moving, 3 fully opened or closed

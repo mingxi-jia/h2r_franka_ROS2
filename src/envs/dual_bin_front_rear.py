@@ -84,7 +84,7 @@ class DualBinFrontRear(Env):
         self.z_heuristic = z_heuristic
 
         # bin z protection
-        self.z_bin_constrain = ZProtect(bin_size + 0.028, None, 55, 0.1)
+        self.z_bin_constrain = ZProtect(bin_size + 0.035, None, 55, 0.1)
 
         self.State = None
         self.Reward = None
@@ -280,6 +280,7 @@ class DualBinFrontRear(Env):
 
     def reset(self):
         cam_obs, _ = self.getObs(None)
+        # print('getting obs')
         if self.picking_bin_id is None:
             for id, bin in enumerate(self.bins):
                 if not bin.IsEmpty(cam_obs):
@@ -295,17 +296,17 @@ class DualBinFrontRear(Env):
 
     def p_reset(self):
         all_state = self.reset()
-        logging.debug('get obs')
+        # print('get obs')
         self.State.set_var('reset', all_state)
         self.IsRobotReady.set_var('reset', True)
 
     def p_sensor_processing(self):
         while True:
-            print('processing img')
+            # print('processing img')
             # Observation
-            logging.debug('about to get request')
+            # print('about to get request')
             request = self.Request.get_var('sensor_processing')
-            logging.debug('got request')
+            # print('got request')
             if request is self.SENTINEL:
                 break
             cam_obs, _ = self.getObs(None)
@@ -314,11 +315,12 @@ class DualBinFrontRear(Env):
                 self.picking_bin_id = (self.picking_bin_id + 1) % 2
                 done = True
                 self.p_place_move_center(is_request=True)
+                # print('episode ends')
             else:
                 done = False
                 obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel,
                                                                              self.bin_size_pixel)
-                logging.debug('got obs')
+                # print('got obs')
                 all_state = (torch.tensor([0], dtype=torch.float32).view(1), \
                              torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
                              obs.to(torch.float32))
@@ -326,13 +328,13 @@ class DualBinFrontRear(Env):
         print('sensor_processing killed')
 
     def p_picking(self, action):
-        logging.debug('pick at: ', action)
+        # print('pick at: ', action)
         assert self.picking_bin_id is not None
         # pick
         p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
         self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
         self.r_action = r
-        logging.debug('finished picking')
+        # print('finished picking')
 
     def p_move_reward(self):
         # move
@@ -343,17 +345,17 @@ class DualBinFrontRear(Env):
         # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.15)
         reward = self.ur5.checkGripperState()
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
         if self.Reward is not None:
             self.Reward.set_var('move_reward', reward)
-        logging.debug('moved to the center, reward: ', reward)
+        # print('moved to the center, reward: ', reward)
         return reward.item()
 
     def p_place_move_center(self, is_request=True):
         # place
-        print('placing')
+        # print('placing')
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         z = self.release_z + self.workspace[2][0]
         # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
@@ -382,7 +384,7 @@ class DualBinFrontRear(Env):
         rx, ry, rz = r
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         self.IsRobotReady.set_var('place', True)
-        logging.debug('robot is ready for picking')
+        # print('robot is ready for picking')
 
     def step(self, action):
         '''

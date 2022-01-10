@@ -14,7 +14,7 @@ from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
-        self.collision_detection = CollisionDetector(max_z=30)
+        self.collision_detection = CollisionDetector(max_z=15)
         self.grasp_collision_detection = CollisionDetector(max_z=60)
         self.gripper = Gripper(True)
         self.gripper.reset()
@@ -126,7 +126,7 @@ class UR5:
             self.waitUntilSlowMoving()
 
 
-    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.05, with_collision_detection=False):
+    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.1, with_collision_detection=False):
         a_with_cd = 0.4
         v_with_cd = 0.2
         self.collision_flag = False
@@ -162,7 +162,7 @@ class UR5:
             # s = 'movel(p{}, v=0.25)'.format(pose)
             # rospy.sleep(0.1)
             self.pub.publish(s)
-            print('collision detected z = ', z)
+            # print('collision detected z = ', z)
             rospy.sleep(0.5)
             self.collision_flag = False
 
@@ -181,9 +181,11 @@ class UR5:
 
 
     def checkGripperState(self):
-        if self.gripper.isClosed():
+        if not self.gripper.hasObj():
             self.gripper.openGripper()
             self.holding_state = 0
+        else:
+            self.holding_state = 1
         return self.holding_state
 
     def only_pick(self, x, y, z, r, check_gripper_close_when_pick=True):
@@ -198,17 +200,17 @@ class UR5:
 
         self.moveToP(*pre_pos, rx, ry, rz)
         self.moveToP(x, y, z, rx, ry, rz)
-        self.gripper.closeGripper(force=100)
-        rospy.sleep(0.5)
+        self.gripper.closeGripper(force=255)
+        # rospy.sleep(0.5)
         self.holding_state = 1
         if check_gripper_close_when_pick:
-            if self.gripper.isClosed():
+            if self.gripper.hasObj():
                 self.gripper.openGripper()
                 self.holding_state = 0
         self.moveToP(*pre_pos, rx, ry, rz)
         if not check_gripper_close_when_pick:
             self.gripper.closeGripper()
-            if self.gripper.isClosed():
+            if self.gripper.hasObj():
                 self.gripper.openGripper()
                 self.holding_state = 0
 
@@ -222,7 +224,7 @@ class UR5:
         # pre_pos += self.pick_offset * T[:3, 2]
         pre_pos[2] += self.pick_offset
 
-        self.moveToPT(*pre_pos, rx, ry, rz, t=1, t_wait_reducing=-0.1)
+        self.moveToPT(*pre_pos, rx, ry, rz, t=1)
         self.moveToPT(x, y, z, rx, ry, rz, with_collision_detection=True)
         with self.grasp_collision_detection as cd:
             self.gripper.closeGripper()
@@ -257,13 +259,13 @@ class UR5:
 
         self.holding_state = 1
         if check_gripper_close_when_pick:
-            if self.gripper.isClosed():
+            if not self.gripper.hasObj():
                 self.gripper.openGripper()
                 self.holding_state = 0
         self.moveToPT(*pre_pos, rx, ry, rz, t=0.5)
         if not check_gripper_close_when_pick:
             self.gripper.closeGripper()
-            if self.gripper.isClosed():
+            if not self.gripper.hasObj():
                 self.gripper.openGripper()
                 self.holding_state = 0
 
