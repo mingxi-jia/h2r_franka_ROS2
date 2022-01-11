@@ -14,7 +14,7 @@ from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
-        self.collision_detection = CollisionDetector(max_z=15)
+        self.collision_detection = CollisionDetector(max_z=30)
         self.grasp_collision_detection = CollisionDetector(max_z=60)
         self.gripper = Gripper(True)
         self.gripper.reset()
@@ -228,6 +228,7 @@ class UR5:
         self.moveToPT(x, y, z, rx, ry, rz, with_collision_detection=True)
         with self.grasp_collision_detection as cd:
             self.gripper.closeGripper()
+            print('closing gripper')
             time_for_close = 8
             while True:
                 for _ in range(time_for_close):
@@ -236,7 +237,7 @@ class UR5:
 
                     if self.safety_mode == 3:
                         self.gripper.openGripper()
-                        print('emergency stop triggered')
+                        print('protective stop triggered')
                         rospy.sleep(0.1)
                         self.release_protective_stop()
                         self.collision_flag = True
@@ -245,24 +246,24 @@ class UR5:
                     if not cd.is_running or self.safety_mode == 3:
                         break
                     rospy.sleep(0.1)
-                # print('safety mode ', self.safety_mode)
+                print('safety mode ', self.safety_mode)
                 if self.collision_flag:
                     recovery_z = self.tool_position[2] + 0.015
                     # self.gripper.openGripper()
                     self.moveToPT(x, y, recovery_z, rx, ry, rz, t=0.2)
-                    # pos = [x, y, z + 0.01, rx, ry, rz]
                     self.collision_flag = False
                     cd.is_running = True
-                    time_for_close = 1
+                    time_for_close = 3
                 else:
+                    print('grasp finished')
                     break
 
         self.holding_state = 1
         if check_gripper_close_when_pick:
             if not self.gripper.hasObj():
-                self.gripper.openGripper()
+                # self.gripper.openGripper()
                 self.holding_state = 0
-        self.moveToPT(*pre_pos, rx, ry, rz, t=0.5)
+        self.moveToPT(*pre_pos, rx, ry, rz, t=0.4)
         if not check_gripper_close_when_pick:
             self.gripper.closeGripper()
             if not self.gripper.hasObj():
@@ -321,14 +322,14 @@ if __name__ == '__main__':
     rospy.init_node('ur5')
     ur5 = UR5()
     ur5.moveToHome()
-    # ur5.gripper.closeGripper()
-    # ur5.moveToPT(-0.451975, 0.273, 0.04, 0, 0, 0.7853981852531433, t=2, t_wait_reducing=0.1)
-    # while True:
-    #     ur5.moveToPT(-0.451975, 0.273, 0.125, 0, 0, 0.7853981852531433, t=1, t_wait_reducing=-0.1)
-    #     # ur5.moveToPT(-0.451975, 0.273, -0.02, 0, 0, 0.7853981852531433, t=0.2, t_wait_reducing=0.05)
-    #     print('prepose')
-    #     ur5.only_pick_fast(-0.451975, 0.273, -0.075, (0, 0, 0.7853981852531433), check_gripper_close_when_pick=True)
-        # ur5.moveToPT(-0.451975, 0.273, -0.075, 0, 0, 0.7853981852531433, with_collision_detection=True)
+    ur5.gripper.closeGripper()
+    ur5.moveToPT(-0.451975, 0.273, 0.04, 0, 0, 0.7853981852531433, t=2, t_wait_reducing=0.1)
+    while True:
+        ur5.moveToPT(-0.451975, 0.273, 0.125, 0, 0, 0.7853981852531433, t=1, t_wait_reducing=-0.1)
+        # ur5.moveToPT(-0.451975, 0.273, -0.02, 0, 0, 0.7853981852531433, t=0.2, t_wait_reducing=0.05)
+        print('prepose')
+        ur5.only_pick_fast(-0.451975, 0.273, -0.075, (0, 0, 0.7853981852531433), check_gripper_close_when_pick=True)
+        ur5.moveToPT(-0.451975, 0.273, -0.075, 0, 0, 0.7853981852531433, with_collision_detection=True)
     pick_place_offset = 0.1
     pick_place_height = 0.25
 

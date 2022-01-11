@@ -221,7 +221,9 @@ class DualBinFrontRear(Env):
                 # safe_z_pos = max(np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth,
                 #                  np.mean(egde.flatten()[(-egde).flatten().argsort()[2:12]]) - self.gripper_depth / 1.5)
                 # Only safe with z collision detection
-                safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) - self.gripper_depth
+                center = local_region[(self.in_hand_size - 4):(self.in_hand_size + 4),
+                                      (self.in_hand_size - 4):(self.in_hand_size + 4)]
+                safe_z_pos = np.mean(center.flatten()[(-center).flatten().argsort()[2:12]]) - self.gripper_depth
             else:
                 safe_z_pos = np.mean(patch.flatten()[(-patch).flatten().argsort()[2:12]]) + z
 
@@ -336,7 +338,8 @@ class DualBinFrontRear(Env):
         self.r_action = r
         # print('finished picking')
 
-    def p_move_reward(self):
+    def p_move_reward(self, return_reward=True):
+        self.ur5.gripper.closeGripper()
         # move
         x, y, z, r = self.move_action
         # Add some random noise to protect robot
@@ -345,10 +348,10 @@ class DualBinFrontRear(Env):
         # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.15)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=-0.1)
         reward = self.ur5.checkGripperState()
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
-        if self.Reward is not None:
+        if self.Reward is not None and return_reward:
             self.Reward.set_var('move_reward', reward)
         # print('moved to the center, reward: ', reward)
         return reward.item()
