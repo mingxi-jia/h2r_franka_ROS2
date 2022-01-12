@@ -22,6 +22,8 @@ class UR5:
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
         self.home_joint_values = [-0.394566837941305, -2.294720474873678, 2.2986323833465576,
                                   -1.5763557592975062,-1.5696309248553675, -0.3957274595843714]
+        self.bins_center_joint_values = [[-0.36723787, -1.71223528, 1.87438631,
+                                          -1.71623451, -1.57518703, 1.21666324]]
 
         # Joint states subscriber
         self.joint_names_speedj = ['shoulder_pan_joint', 'shoulder_lift_joint',
@@ -91,9 +93,9 @@ class UR5:
     def is_position_arrived(self, x, y, z, threshold=1e-3):
         return np.allclose(np.asarray([x, y, z]), self.tool_position, atol=threshold)
 
-    def moveToJ(self, joint_pos):
+    def moveToJ(self, joint_pos, v=2):
         for _ in range(1):
-            s = 'movej({}, v=2)'.format(joint_pos)
+            s = 'movej({}, v={})'.format(joint_pos, v)
             rospy.sleep(0.2)
             self.pub.publish(s)
             self.waitUntilNotMoving()
@@ -178,6 +180,10 @@ class UR5:
 
     def moveToHome(self):
         self.moveToJ(self.home_joint_values)
+
+
+    def moveToBinCenter(self):
+        self.moveToJ(self.bins_center_joint_values, v=5)
 
 
     def checkGripperState(self):

@@ -95,11 +95,11 @@ class DualBinFrontRear(Env):
 
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
-        obs[obs > 0.2] = obs.mean()
+        obs[obs > 0.2] = obs[obs < 0.2].mean()
         return obs.clip(max=0.2), in_hand
 
     def checkWS(self):
-        obs, in_hand = env.getObs(None)
+        obs, in_hand = self.getObs(None)
         plt.imshow(obs[0, 0])
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
@@ -312,6 +312,7 @@ class DualBinFrontRear(Env):
             if request is self.SENTINEL:
                 break
             cam_obs, _ = self.getObs(None)
+            print('got cam_obs')
             if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
                 self.IsRobotReady.get_var('sensor_processing')
                 self.picking_bin_id = (self.picking_bin_id + 1) % 2
@@ -349,7 +350,9 @@ class DualBinFrontRear(Env):
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=-0.1)
+        # self.ur5.moveToBinCenter()
         reward = self.ur5.checkGripperState()
+
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
         if self.Reward is not None and return_reward:
             self.Reward.set_var('move_reward', reward)
@@ -371,8 +374,9 @@ class DualBinFrontRear(Env):
         # if move2_prepose:
         #     self.moveToP(*pre_pos, rx, ry, rz)
         # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.5)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.4)
         # self.gripper.openGripper(position=self.place_open_pos)
+        rospy.sleep(0.1)
         if is_request:
             self.Request.set_var('place', 1)
         self.ur5.gripper.openGripper()
@@ -385,6 +389,7 @@ class DualBinFrontRear(Env):
         # move
         x, y, z, r = self.move_action
         rx, ry, rz = r
+        print('moving back bins center')
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         self.IsRobotReady.set_var('place', True)
         # print('robot is ready for picking')
@@ -448,6 +453,7 @@ if __name__ == '__main__':
     import rospy
 
     rospy.init_node('image_proxy')
-    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256), obs_source='reconstruct', bin_size_pixel=112)
+    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256),
+                           obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
