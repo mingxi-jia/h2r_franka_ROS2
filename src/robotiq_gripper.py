@@ -2,7 +2,7 @@
 This module represents a robot gripper. It uses the gripper driver from
 https://github.com/UTNuclearRoboticsPublic/robotiq/tree/kinetic-devel.
 '''
-
+import numpy as np
 import rospy
 from robotiq_2f_gripper_control.msg import Robotiq2FGripper_robot_output as GripperCmd
 from robotiq_2f_gripper_control.msg import Robotiq2FGripper_robot_input as GripperStat
@@ -11,12 +11,15 @@ class Gripper:
 
   def __init__(self, isMoving):
     '''Constructor.'''
+    self.status = None
+    self.isMoving = isMoving
+    self.speed = 10
+    self.speed_window_size = 5
+    self.speed_window = np.zeros([self.speed_window_size])  # [new, old, older, ...]
 
     self.gripperSub = rospy.Subscriber('/Robotiq2FGripperRobotInput', GripperStat, self.updateGripperStat)
     self.gripperPub = rospy.Publisher('/Robotiq2FGripperRobotOutput', GripperCmd, queue_size=1)
 
-    self.status = None
-    self.isMoving = isMoving
 
     print('Waiting for gripper driver to connect ...')
     while self.gripperPub.get_num_connections() == 0 or self.status is None:
@@ -30,6 +33,11 @@ class Gripper:
     '''Obtain the status of the gripper.'''
 
     self.status = msg
+    self.speed_window[1:] = self.speed_window[:-1]
+    self.speed_window[0] = self.status.gPO
+    self.speed = (self.speed_window[-1] - self.speed_window[0]) / self.speed_window_size
+    # print(self.speed_window[-1] - self.speed_window[0])
+    # print(self.speed_window)
 
   def reset(self):
     '''Reset the gripper.'''
@@ -84,11 +92,13 @@ class Gripper:
     self.gripperPub.publish(cmd)
     # rospy.sleep(0.5)
 
-  def hasObj(self):
+  def hasObj(self, wait_speed0=False):
     # return self.status.gCU < 10
     # return self.status.gPO > 204
+    rospy.sleep(0.4)
     while True:
-      if self.status.gOBJ != 0:
+      print(self.speed, self.status.gOBJ, self.speed_window)
+      if self.status.gOBJ != 0 and (not wait_speed0 or self.speed == 0):
         break
       else:
         rospy.sleep(0.05)

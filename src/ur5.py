@@ -187,7 +187,7 @@ class UR5:
 
 
     def checkGripperState(self):
-        if not self.gripper.hasObj():
+        if not self.gripper.hasObj(wait_speed0=True):
             self.gripper.openGripper()
             self.holding_state = 0
         else:
@@ -234,7 +234,7 @@ class UR5:
         self.moveToPT(x, y, z, rx, ry, rz, with_collision_detection=True)
         with self.grasp_collision_detection as cd:
             self.gripper.closeGripper()
-            print('closing gripper')
+            # print('closing gripper')
             time_for_close = 8
             while True:
                 for _ in range(time_for_close):
@@ -252,7 +252,7 @@ class UR5:
                     if not cd.is_running or self.safety_mode == 3:
                         break
                     rospy.sleep(0.1)
-                print('safety mode ', self.safety_mode)
+                # print('safety mode ', self.safety_mode)
                 if self.collision_flag:
                     recovery_z = self.tool_position[2] + 0.015
                     # self.gripper.openGripper()
@@ -261,7 +261,7 @@ class UR5:
                     cd.is_running = True
                     time_for_close = 3
                 else:
-                    print('grasp finished')
+                    # print('grasp finished')
                     break
 
         self.holding_state = 1

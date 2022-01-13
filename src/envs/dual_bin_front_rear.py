@@ -89,7 +89,6 @@ class DualBinFrontRear(Env):
         self.State = None
         self.Reward = None
         self.Action = None
-        self.Request = None
         self.IsRobotReady = None
         self.SENTINEL = None
 
@@ -264,7 +263,8 @@ class DualBinFrontRear(Env):
             ry = action[rot_idx + 1]
             rx = action[rot_idx + 2]
         rot = (rx, ry, rz)
-        bin_z = self.z_bin_constrain.z_protection_func((x, y, rz))
+        # bin_z = self.z_bin_constrain.z_protection_func((x, y, rz))
+        bin_z = 0
         assert -(self.action_range / 2) <= x <= (self.action_range / 2) and \
                -(self.action_range / 2) <= y <= (self.action_range / 2)
         bin_center_ws = self.bins[bin_id].center_ws
@@ -306,19 +306,15 @@ class DualBinFrontRear(Env):
         while True:
             # print('processing img')
             # Observation
-            # print('about to get request')
-            request = self.Request.get_var('sensor_processing')
             # print('got request')
-            if request is self.SENTINEL:
-                break
             cam_obs, _ = self.getObs(None)
-            print('got cam_obs')
+            # print('got cam_obs')
             if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
-                self.IsRobotReady.get_var('sensor_processing')
+                # self.IsRobotReady.get_var('sensor_processing')
                 self.picking_bin_id = (self.picking_bin_id + 1) % 2
                 done = True
-                self.p_place_move_center(is_request=True)
                 # print('episode ends')
+                return False
             else:
                 done = False
                 obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel,
@@ -328,6 +324,7 @@ class DualBinFrontRear(Env):
                              torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
                              obs.to(torch.float32))
                 self.State.set_var('sensor_processing', all_state)
+                return True
         print('sensor_processing killed')
 
     def p_picking(self, action):
@@ -360,38 +357,41 @@ class DualBinFrontRear(Env):
         return reward.item()
 
     def p_place_move_center(self, is_request=True):
-        # place
-        # print('placing')
-        p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
-        z = self.release_z + self.workspace[2][0]
-        # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+        while True:
+            # place
+            # print('placing')
+            p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
+            z = self.release_z + self.workspace[2][0]
+            # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
 
-        rx, ry, rz = r
-        # T = transformation.euler_matrix(rx, ry, rz)
-        # pre_pos = np.array([x, y, z])
-        # pre_pos += self.pick_offset * T[:3, 2]
-        # pre_pos[2] += self.place_offset
-        # if move2_prepose:
-        #     self.moveToP(*pre_pos, rx, ry, rz)
-        # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.4)
-        # self.gripper.openGripper(position=self.place_open_pos)
-        rospy.sleep(0.1)
-        if is_request:
-            self.Request.set_var('place', 1)
-        self.ur5.gripper.openGripper()
-        rospy.sleep(0.5)
-        self.ur5.holding_state = 0
-        # if move2_prepose:
-        #     self.moveToP(*pre_pos, rx, ry, rz)
-        # self.old_heightmap = self.heightmap
+            rx, ry, rz = r
+            # T = transformation.euler_matrix(rx, ry, rz)
+            # pre_pos = np.array([x, y, z])
+            # pre_pos += self.pick_offset * T[:3, 2]
+            # pre_pos[2] += self.place_offset
+            # if move2_prepose:
+            #     self.moveToP(*pre_pos, rx, ry, rz)
+            # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.5)
+            # self.gripper.openGripper(position=self.place_open_pos)
+            self.ur5.gripper.openGripper()
+            if is_request:
+                sensor_success = self.p_sensor_processing()
 
-        # move
-        x, y, z, r = self.move_action
-        rx, ry, rz = r
-        print('moving back bins center')
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
-        self.IsRobotReady.set_var('place', True)
+            self.ur5.holding_state = 0
+            # if move2_prepose:
+            #     self.moveToP(*pre_pos, rx, ry, rz)
+            # self.old_heightmap = self.heightmap
+
+            # move
+            x, y, z, r = self.move_action
+            rx, ry, rz = r
+            # print('moving back bins center')
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
+
+            if sensor_success:
+                self.IsRobotReady.set_var('place', True)
+                break
         # print('robot is ready for picking')
 
     def step(self, action):
