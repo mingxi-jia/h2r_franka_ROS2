@@ -293,8 +293,8 @@ class DualBinFrontRear(Env):
 
         return torch.tensor([0], dtype=torch.float32).view(1), \
                torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
-               torch.tensor(self.bins[self.picking_bin_id].GetObs(cam_obs)
-                            .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
+               self.bins[self.picking_bin_id].GetObs(cam_obs)\
+                         .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel).to(torch.float32)
 
     def p_reset(self):
         all_state = self.reset()
@@ -377,6 +377,9 @@ class DualBinFrontRear(Env):
             self.ur5.gripper.openGripper()
             if is_request:
                 sensor_success = self.p_sensor_processing()
+            else:
+                sensor_success = True
+                rospy.sleep(0.6)
 
             self.ur5.holding_state = 0
             # if move2_prepose:

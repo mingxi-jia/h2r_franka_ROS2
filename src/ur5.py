@@ -14,8 +14,8 @@ from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
-        self.collision_detection = CollisionDetector(max_z=30)
-        self.grasp_collision_detection = CollisionDetector(max_z=60)
+        self.collision_detection = CollisionDetector(max_z=40)
+        self.grasp_collision_detection = CollisionDetector(max_z=80)
         self.gripper = Gripper(True)
         self.gripper.reset()
         self.gripper.activate()
@@ -129,7 +129,7 @@ class UR5:
 
 
     def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.1, with_collision_detection=False):
-        a_with_cd = 0.4
+        a_with_cd = 0.3
         v_with_cd = 0.2
         self.collision_flag = False
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
@@ -158,7 +158,7 @@ class UR5:
 
         if self.collision_flag and with_collision_detection:
             # # If either collision or protecitve stop happened, lift z for 1 cm
-            z = self.tool_position[2] + 0.015
+            z = self.tool_position[2] + 0.01
             pose = [x, y, z, rx, ry, rz]
             s = 'movel(p{}, v=0.5, t={})'.format(pose, 0.5)
             # s = 'movel(p{}, v=0.25)'.format(pose)
@@ -265,16 +265,16 @@ class UR5:
                     break
 
         self.holding_state = 1
-        if check_gripper_close_when_pick:
-            if not self.gripper.hasObj():
-                # self.gripper.openGripper()
-                self.holding_state = 0
+        # if check_gripper_close_when_pick:
+        #     if not self.gripper.hasObj():
+        #         # self.gripper.openGripper()
+        #         self.holding_state = 0
         self.moveToPT(*pre_pos, rx, ry, rz, t=0.4)
-        if not check_gripper_close_when_pick:
-            self.gripper.closeGripper()
-            if not self.gripper.hasObj():
-                self.gripper.openGripper()
-                self.holding_state = 0
+        # if not check_gripper_close_when_pick:
+        #     self.gripper.closeGripper()
+        #     if not self.gripper.hasObj():
+        #         self.gripper.openGripper()
+        #         self.holding_state = 0
 
     def pick(self, x, y, z, r):
         self.only_pick(x, y, z, r)

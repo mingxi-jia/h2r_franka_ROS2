@@ -14,7 +14,7 @@ class Gripper:
     self.status = None
     self.isMoving = isMoving
     self.speed = 10
-    self.speed_window_size = 5
+    self.speed_window_size = 2
     self.speed_window = np.zeros([self.speed_window_size])  # [new, old, older, ...]
 
     self.gripperSub = rospy.Subscriber('/Robotiq2FGripperRobotInput', GripperStat, self.updateGripperStat)
@@ -95,9 +95,9 @@ class Gripper:
   def hasObj(self, wait_speed0=False):
     # return self.status.gCU < 10
     # return self.status.gPO > 204
-    rospy.sleep(0.4)
+    # rospy.sleep(0.4)
     while True:
-      print(self.speed, self.status.gOBJ, self.speed_window)
+      # print(self.speed, self.status.gOBJ, self.speed_window)
       if self.status.gOBJ != 0 and (not wait_speed0 or self.speed == 0):
         break
       else:
