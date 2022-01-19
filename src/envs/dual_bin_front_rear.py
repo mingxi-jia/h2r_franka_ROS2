@@ -55,7 +55,7 @@ class DualBinFrontRear(Env):
         super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
                          place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
 
-        self.gripper_depth = 0.05
+        self.gripper_depth = 0.055
         # self.gripper_depth = 0.0
         assert (ws_x / cam_size[0]) == (ws_y / cam_size[1])
         assert bin_size != 0
@@ -95,7 +95,7 @@ class DualBinFrontRear(Env):
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
         obs[obs > 0.2] = obs[obs < 0.2].mean()
-        return obs.clip(max=0.2), in_hand
+        return obs.clip(max=0.2, min=0), in_hand
 
     def checkWS(self):
         obs, in_hand = self.getObs(None)
@@ -346,9 +346,10 @@ class DualBinFrontRear(Env):
         # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=-0.1)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.8)
         # self.ur5.moveToBinCenter()
         reward = self.ur5.checkGripperState()
+        # rospy.sleep(0.2)
 
         reward = torch.tensor(reward, dtype=torch.float32).view(1)
         if self.Reward is not None and return_reward:
@@ -372,14 +373,14 @@ class DualBinFrontRear(Env):
             # if move2_prepose:
             #     self.moveToP(*pre_pos, rx, ry, rz)
             # self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1.2, t_wait_reducing=0.5)
-            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.5)
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=.9, t_wait_reducing=0.6)
             # self.gripper.openGripper(position=self.place_open_pos)
             self.ur5.gripper.openGripper()
             if is_request:
                 sensor_success = self.p_sensor_processing()
             else:
                 sensor_success = True
-                rospy.sleep(0.6)
+                rospy.sleep(0.7)
 
             self.ur5.holding_state = 0
             # if move2_prepose:
@@ -390,7 +391,7 @@ class DualBinFrontRear(Env):
             x, y, z, r = self.move_action
             rx, ry, rz = r
             # print('moving back bins center')
-            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.7)
 
             if sensor_success:
                 self.IsRobotReady.set_var('place', True)
