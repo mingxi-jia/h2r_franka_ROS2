@@ -40,12 +40,16 @@ class CloudProxy:
         cloudFrame = self.msg.header.frame_id
         # cloud = np.array(list(point_cloud2.read_points(self.msg)))[:, 0:3]
         pc = ros_numpy.numpify(self.msg)
+        pc = ros_numpy.point_cloud2.split_rgb_field(pc)
         height = pc.shape[0]
         width = pc.shape[1]
-        cloud = np.zeros((height * width, 3), dtype=np.float32)
+        cloud = np.zeros((height * width, 6), dtype=np.float32)
         cloud[:, 0] = np.resize(pc['x'], height * width)
         cloud[:, 1] = np.resize(pc['y'], height * width)
         cloud[:, 2] = np.resize(pc['z'], height * width)
+        cloud[:, 3] = np.resize(pc['r'], height * width)
+        cloud[:, 4] = np.resize(pc['g'], height * width)
+        cloud[:, 5] = np.resize(pc['b'], height * width)
         mask = np.logical_not(np.isnan(cloud).any(axis=1))
         cloud = cloud[mask]
         # print("Received Structure cloud with {} points.".format(cloud.shape[0]))
