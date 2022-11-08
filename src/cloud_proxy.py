@@ -16,7 +16,8 @@ from skimage.transform import rotate
 class CloudProxy:
     def __init__(self):
         # self.topic = '/camera/depth/points'
-        self.topic = '/kinect2/hd/points'
+        # self.topic = '/kinect2/hd/points'
+        self.topic = '/depth_to_rgb/points'
         self.sub = rospy.Subscriber(self.topic, PointCloud2, self.callbackCloud, queue_size=1)
         self.msg = None
         self.image = None
