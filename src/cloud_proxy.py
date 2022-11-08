@@ -55,12 +55,13 @@ class CloudProxy:
         # print("Received Structure cloud with {} points.".format(cloud.shape[0]))
         return cloud
 
-    def getProjectImg(self, target_size, img_size):
+    def getProjectImg(self, target_size, img_size, return_rgb=False):
         cloud = self.getCloud()
         view_matrix = np.eye(4)
         view_matrix[:3, 3] = [-0.007, -0.013, 0]
-        augment = np.ones((1, cloud.shape[0]))
-        pts = np.concatenate((cloud.T, augment), axis=0)
+        # augment = np.ones((1, cloud.shape[0]))
+        # pts = np.concatenate((cloud.T, augment), axis=0)
+        pts = cloud.T
         projection_matrix = np.array([
             [1 / (target_size / 2), 0, 0, 0],
             [0, 1 / (target_size / 2), 0, 0],
@@ -68,7 +69,7 @@ class CloudProxy:
             [0, 0, 0, 1]
         ])
         tran_world_pix = np.matmul(projection_matrix, view_matrix)
-        pts = np.matmul(tran_world_pix, pts)
+        pts[:2] = np.matmul(tran_world_pix[:2, :2], pts[:2])
         # pts[1] = -pts[1]
         pts[0] = (pts[0] + 1) * img_size / 2
         pts[1] = (pts[1] + 1) * img_size / 2
@@ -101,18 +102,27 @@ class CloudProxy:
         imputer = SimpleImputer(missing_values=np.nan, strategy='median')
         depth = imputer.fit_transform(depth)
         depth = rotate(depth, 90)
-        return depth
+
+        if return_rgb:
+            rgb = pts[3:][:, ind][:, cumsum]
+            rgb = rgb.T.reshape(img_size, img_size, 3)
+            return depth, rgb
+        else:
+            return depth
 
 def main():
     rospy.init_node('test')
     cloudProxy = CloudProxy()
     while True:
-        obs = cloudProxy.getProjectImg(0.8, 128*2)
+        obs, rgb = cloudProxy.getProjectImg(0.8, 128*2)
         obs = -obs
         obs -= obs.min()
         # obs = skimage.transform.resize(obs, (90, 90))
+        plt.figure()
         plt.imshow(obs)
         plt.colorbar()
+        plt.figure()
+        plt.imshow(rgb)
         plt.show()
 
 

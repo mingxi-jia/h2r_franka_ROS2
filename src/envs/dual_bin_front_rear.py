@@ -35,15 +35,15 @@ class Bin():
 
     def GetObs(self, obs):
         pixel_range = self.GetRangeRC()
-        return obs[0, 0, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+        return obs[0, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
 
     def GetActionWiseObs(self, obs):
         bin_obs = self.GetObs(obs)
 
-        return bin_obs[self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
+        return bin_obs[:, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
     def IsEmpty(self, obs):
-        return np.all(np.asarray(self.GetActionWiseObs(obs)) < self.empty_thres)
+        return np.all(np.asarray(self.GetActionWiseObs(obs[-1])) < self.empty_thres)
 
 
 class DualBinFrontRear(Env):
@@ -89,12 +89,13 @@ class DualBinFrontRear(Env):
 
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
-        obs[obs > 0.2] = obs.mean()
-        return obs.clip(max=0.2), in_hand
+        # obs[obs > 0.2] = obs.mean()
+        # return obs.clip(max=0.2), in_hand
+        return obs, in_hand
 
     def checkWS(self):
         obs, in_hand = env.getObs(None)
-        plt.imshow(obs[0, 0])
+        plt.imshow(obs[0, -1])
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
         plt.scatter(128, 128, color='g', linewidths=2, marker='+')
@@ -116,9 +117,9 @@ class DualBinFrontRear(Env):
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
         plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
-        obs0 = axs[0].imshow(self.left_bin.GetObs(obs))
+        obs0 = axs[0].imshow(self.left_bin.GetObs(obs)[-1])
         fig.colorbar(obs0, ax=axs[0])
-        obs1 = axs[1].imshow(self.right_bin.GetObs(obs))
+        obs1 = axs[1].imshow(self.right_bin.GetObs(obs)[-1])
         fig.colorbar(obs1, ax=axs[1])
         plt.show()
 
@@ -149,14 +150,14 @@ class DualBinFrontRear(Env):
 
     def _getPixelsFromXY(self, x, y):
         '''
-        Get the x/y pixels on the heightmap for the given coordinates
+        Get the x/y pixels on the rgbd_img for the given coordinates
         Args:
           - x: X coordinate
           - y: Y coordinate
         Returns: (x, y) in pixels corresponding to coordinates
         '''
-        y_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
-        x_pixel = (y - self.workspace[1][0]) / self.heightmap_resolution
+        y_pixel = (x - self.workspace[0][0]) / self.rgbd_img_resolution
+        x_pixel = (y - self.workspace[1][0]) / self.rgbd_img_resolution
 
         return int(x_pixel), int(y_pixel)
 
@@ -176,17 +177,17 @@ class DualBinFrontRear(Env):
         x += bin_center_ws[0]
         y += bin_center_ws[1]
         col_pixel, row_pixel = self._getPixelsFromXY(x, y)
-        local_region = self.heightmap[int(max(row_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
-                                      int(min(row_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[1])),
-                                      int(max(col_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
-                                      int(min(col_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[0]))]
+        local_region = self.rgbd_img[0, -1, int(max(row_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
+                                     int(min(row_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[1])),
+                                     int(max(col_pixel - self.in_hand_size * self.safe_z_region / 2, 0)):
+                                     int(min(col_pixel + self.in_hand_size * self.safe_z_region / 2, self.cam_size[0]))]
         hm_at_action = np.median(local_region.flatten()[(-local_region).flatten().argsort()[:25]])
         return hm_at_action < hm_thres
 
 
     def _getPrimativeHeight(self, motion_primative, x, y, rz=None, z=None):
         '''
-        Get the z position for the given action using the current heightmap.
+        Get the z position for the given action using the current rgbd_img.
         Args:
           - motion_primative: Pick/place motion primative
           - x: X coordinate for action
@@ -201,10 +202,10 @@ class DualBinFrontRear(Env):
 
 
         if motion_primative == self.PICK_PRIMATIVE:
-            local_region = self.heightmap[int(max(row_pixel - self.in_hand_size, 0)):
-                                          int(min(row_pixel + self.in_hand_size, self.cam_size[1])),
-                                          int(max(col_pixel - self.in_hand_size, 0)):
-                                          int(min(col_pixel + self.in_hand_size, self.cam_size[0]))] # local_region is x4 large as ih_img
+            local_region = self.rgbd_img[0, -1, int(max(row_pixel - self.in_hand_size, 0)):
+                                         int(min(row_pixel + self.in_hand_size, self.cam_size[1])),
+                                         int(max(col_pixel - self.in_hand_size, 0)):
+                                         int(min(col_pixel + self.in_hand_size, self.cam_size[0]))] # local_region is x4 large as ih_img
 
             local_region = rotate(local_region, angle=-rz * 180 / np.pi, reshape=False)
             patch = local_region[(self.in_hand_size - 16):(self.in_hand_size + 16),
@@ -282,7 +283,7 @@ class DualBinFrontRear(Env):
         return torch.tensor([0], dtype=torch.float32).view(1),\
                torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
                torch.tensor(self.bins[self.picking_bin_id].GetObs(cam_obs)
-                            .reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
+                            .reshape(1, -1, self.bin_size_pixel, self.bin_size_pixel)).to(torch.float32)
 
     def p_reset(self):
         all_state = self.reset()
@@ -306,7 +307,7 @@ class DualBinFrontRear(Env):
                 self.p_place_move_center(is_request=True)
             else:
                 done = False
-                obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
+                obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, -1, self.bin_size_pixel, self.bin_size_pixel)
                 logging.debug('got obs')
                 all_state = (torch.tensor([0], dtype=torch.float32).view(1), \
                              torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32), \
@@ -360,7 +361,7 @@ class DualBinFrontRear(Env):
         self.ur5.holding_state = 0
         # if move2_prepose:
         #     self.moveToP(*pre_pos, rx, ry, rz)
-        # self.old_heightmap = self.heightmap
+        # self.old_rgbd_img = self.rgbd_img
 
         # move
         x, y, z, r = self.move_action
@@ -390,7 +391,7 @@ class DualBinFrontRear(Env):
     #     p, x, y, z, r = place_action
     #     z = self.release_z + self.workspace[2][0]
     #     self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #     self.old_heightmap = self.heightmap
+    #     self.old_rgbd_img = self.rgbd_img
     #     # Observation
     #     cam_obs, _ = self.getObs(None)
     #     if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
@@ -400,7 +401,7 @@ class DualBinFrontRear(Env):
     #         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
     #         z = self.release_z + self.workspace[2][0]
     #         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-    #         self.old_heightmap = self.heightmap
+    #         self.old_rgbd_img = self.rgbd_img
     #         cam_obs, _ = self.getObs(None)
     #     else:
     #         done = False
@@ -438,7 +439,7 @@ class DualBinFrontRear(Env):
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         z = self.release_z + self.workspace[2][0]
         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-        self.old_heightmap = self.heightmap
+        self.old_rgbd_img = self.rgbd_img
         # Observation
         cam_obs, _ = self.getObs(None)
         if self.bins[self.picking_bin_id].IsEmpty(cam_obs): # if one episode ends
@@ -448,11 +449,11 @@ class DualBinFrontRear(Env):
             p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
             z = self.release_z + self.workspace[2][0]
             self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
-            self.old_heightmap = self.heightmap
+            self.old_rgbd_img = self.rgbd_img
             cam_obs, _ = self.getObs(None)
         else:
             done = False
-        obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, 1, self.bin_size_pixel, self.bin_size_pixel)
+        obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, -1, self.bin_size_pixel, self.bin_size_pixel)
 
         # move
         x, y, z, r = self.move_action

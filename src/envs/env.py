@@ -26,20 +26,20 @@ class Env:
         self.cam_resolution = cam_resolution
         self.obs_size = obs_size
         self.action_sequence = action_sequence
-        self.heightmap_resolution = ws_x / obs_size[0]
+        self.rgbd_img_resolution = ws_x / obs_size[0]
 
         self.ur5 = UR5(pick_offset, place_offset, place_open_pos)
         self.img_proxy = ImgProxy()
         self.cloud_proxy = CloudProxy()
-        self.old_heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
-        self.heightmap = np.zeros((self.obs_size[0], self.obs_size[1]))
+        self.old_rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
+        self.rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
 
         # Motion primatives
         self.PICK_PRIMATIVE = 0
         self.PLACE_PRIMATIVE = 1
 
         self.in_hand_size = in_hand_size
-        self.heightmap_size = obs_size[0]
+        self.rgbd_img_size = obs_size[0]
         self.in_hand_mode = in_hand_mode
 
         self.ee_offset = 0.095
@@ -52,26 +52,26 @@ class Env:
         self.safe_z_region = safe_z_region
 
     def _getXYFromPixels(self, x_pixel, y_pixel):
-        x = x_pixel * self.heightmap_resolution + self.workspace[0][0]
-        y = y_pixel * self.heightmap_resolution + self.workspace[1][0]
+        x = x_pixel * self.rgbd_img_resolution + self.workspace[0][0]
+        y = y_pixel * self.rgbd_img_resolution + self.workspace[1][0]
         return x, y
 
     def _getPixelsFromXY(self, x, y):
         '''
-        Get the x/y pixels on the heightmap for the given coordinates
+        Get the x/y pixels on the rgbd_img for the given coordinates
         Args:
           - x: X coordinate
           - y: Y coordinate
         Returns: (x, y) in pixels corresponding to coordinates
         '''
-        x_pixel = (x - self.workspace[0][0]) / self.heightmap_resolution
-        y_pixel = (y - self.workspace[1][0]) / self.heightmap_resolution
+        x_pixel = (x - self.workspace[0][0]) / self.rgbd_img_resolution
+        y_pixel = (y - self.workspace[1][0]) / self.rgbd_img_resolution
 
         return int(x_pixel), int(y_pixel)
 
     def _getPrimativeHeight(self, motion_primative, x, y):
         '''
-        Get the z position for the given action using the current heightmap.
+        Get the z position for the given action using the current rgbd_img.
         Args:
           - motion_primative: Pick/place motion primative
           - x: X coordinate for action
@@ -80,7 +80,7 @@ class Env:
         Returns: Valid Z coordinate for the action
         '''
         x_pixel, y_pixel = self._getPixelsFromXY(x, y)
-        local_region = self.heightmap[int(max(x_pixel - self.obs_size[0] * self.safe_z_region, 0)):
+        local_region = self.rgbd_img[int(max(x_pixel - self.obs_size[0] * self.safe_z_region, 0)):
                                       int(min(x_pixel + self.obs_size[0] * self.safe_z_region, self.obs_size[0])),
                                       int(max(y_pixel - self.obs_size[1] * self.safe_z_region, 0)):
                                       int(min(y_pixel + self.obs_size[1] * self.safe_z_region, self.obs_size[1]))]
@@ -133,8 +133,8 @@ class Env:
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
         # obs = scipy.ndimage.median_filter(obs, 2)
-        b = np.linspace(-0.5, 0.5, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0)
-        # a = np.linspace(0.5, 1, self.heightmap_size).reshape(1, self.heightmap_size).repeat(self.heightmap_size, axis=0).T
+        b = np.linspace(-0.5, 0.5, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0)
+        # a = np.linspace(0.5, 1, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0).T
         b = b * 0.01
         obs += b
         # obs *= 0.9
@@ -147,10 +147,10 @@ class Env:
         crop = np.round(crop, 5)
         size = self.in_hand_size
 
-        zs = np.array([z + (-size / 2 + i) * (self.heightmap_resolution) for i in range(size)])
+        zs = np.array([z + (-size / 2 + i) * (self.rgbd_img_resolution) for i in range(size)])
         zs = zs.reshape((1, 1, -1))
         zs = zs.repeat(size, 0).repeat(size, 1)
-        # zs[zs<-(self.heightmap_resolution)] = 100
+        # zs[zs<-(self.rgbd_img_resolution)] = 100
         c = crop.reshape(size, size, 1).repeat(size, 2)
         ori_occupancy = c > zs
 
@@ -177,11 +177,11 @@ class Env:
         # fig.show()
         return projection
 
-    def getInHandImage(self, heightmap, x, y, z, rot, next_heightmap):
+    def getInHandImage(self, rgbd_img, x, y, z, rot, next_rgbd_img):
         (rx, ry, rz) = rot
-        # Pad heightmaps for grasps near the edges of the workspace
-        heightmap = np.pad(heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
-        next_heightmap = np.pad(next_heightmap, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
+        # Pad rgbd_imgs for grasps near the edges of the workspace
+        rgbd_img = np.pad(rgbd_img, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
+        next_rgbd_img = np.pad(next_rgbd_img, int(self.in_hand_size / 2), 'constant', constant_values=0.0)
 
         x, y = self._getPixelsFromXY(x, y)
         x = x + int(self.in_hand_size / 2)
@@ -193,10 +193,10 @@ class Env:
         y_min = int(y - self.in_hand_size / 2)
         y_max = int(y + self.in_hand_size / 2)
 
-        # Crop both heightmaps
-        crop = heightmap[x_min:x_max, y_min:y_max]
+        # Crop both rgbd_imgs
+        crop = rgbd_img[x_min:x_max, y_min:y_max]
         if self.in_hand_mode.find('sub') > -1:
-            next_crop = next_heightmap[x_min:x_max, y_min:y_max]
+            next_crop = next_rgbd_img[x_min:x_max, y_min:y_max]
 
             # Adjust the in-hand image to remove background objects
             next_max = np.max(next_crop)
@@ -228,7 +228,7 @@ class Env:
     #     # rotate img
     #     obs = scipy.ndimage.rotate(obs, 90)
     #     # save obs copy
-    #     # self.heightmap = obs.copy()
+    #     # self.rgbd_img = obs.copy()
     #     obs = self._preProcessObs(obs)
     #     # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
     #     return obs
@@ -237,7 +237,8 @@ class Env:
         # get img from camera
         obss = []
         for i in range(10):
-            obss.append(self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0]))
+            depth, rgb = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0])
+            obss.append(depth)
         obs = np.median(obss, axis=0)
         # reverse img s.t. table is 0
         obs = -obs
@@ -247,8 +248,9 @@ class Env:
         # rotate img
         # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
-        # self.heightmap = obs.copy()
+        # self.rgbd_img = obs.copy()
         obs = self._preProcessObs(obs)
+        obs = np.concatenate((obs.reshape(1, 1, obs.shape[0], obs.shape[1]), np.expand_dims(rgb, axis=0)), axis=1)
         # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
         return obs
 
@@ -259,22 +261,23 @@ class Env:
             return np.zeros((1, self.in_hand_size, self.in_hand_size))
 
     def getObs(self, action=None):
-        old_heightmap = self.heightmap
+        old_rgbd_img = self.rgbd_img
         if self.obs_source == 'reconstruct':
-            self.heightmap = self.getHeightmapReconstruct()
+            self.rgbd_img = self.getHeightmapReconstruct()
         else:
-            self.heightmap = self.getHeightmapRaw()
+            self.rgbd_img = self.getHeightmapRaw()
 
-        if action is None or self.ur5.holding_state == False:
-            in_hand_img = self.getEmptyInHand()
-        else:
-            motion_primative, x, y, z, rot = self._decodeAction(action)
-            z -= self.ws_center[2]
-            in_hand_img = self.getInHandImage(self.old_heightmap, x, y, z, rot, self.heightmap)
-        in_hand_img = in_hand_img.reshape(1, in_hand_img.shape[0], in_hand_img.shape[1], in_hand_img.shape[2])
-        heightmap = self.heightmap.reshape(1, 1, self.heightmap.shape[0], self.heightmap.shape[1])
+        # if action is None or self.ur5.holding_state == False:
+        #     in_hand_img = self.getEmptyInHand()
+        # else:
+        #     motion_primative, x, y, z, rot = self._decodeAction(action)
+        #     z -= self.ws_center[2]
+        #     in_hand_img = self.getInHandImage(self.old_rgbd_img, x, y, z, rot, self.rgbd_img)
+        # in_hand_img = in_hand_img.reshape(1, in_hand_img.shape[0], in_hand_img.shape[1], in_hand_img.shape[2])
+        in_hand_img = np.zeros((1, self.rgbd_img.shape[1], self.in_hand_size, self.in_hand_size))
+        # rgbd_img = self.rgbd_img.reshape(1, -1, self.rgbd_img.shape[0], self.rgbd_img.shape[1])
 
-        return torch.tensor(heightmap).to(torch.float32), torch.tensor(in_hand_img).to(torch.float32)
+        return torch.tensor(self.rgbd_img).to(torch.float32), torch.tensor(in_hand_img).to(torch.float32)
 
     def step(self, action):
         p, x, y, z, r = self._decodeAction(action)
@@ -285,13 +288,13 @@ class Env:
             self.ur5.place(x, y, z, r)
         else:
             raise NotImplementedError
-        self.old_heightmap = self.heightmap
+        self.old_rgbd_img = self.rgbd_img
 
     def getGripperClosed(self):
         return self.ur5.gripper.isClosed()
 
     def getSafeHeight(self, x, y):
-        return self.heightmap[max(x-5, 0):min(x+5, 90), max(y-5, 0):min(y+5, 90)].max()
+        return self.rgbd_img[max(x-5, 0):min(x+5, 90), max(y-5, 0):min(y+5, 90)].max()
 
     def plotObs(self, cam_resolution):
         self.cam_resolution = cam_resolution
