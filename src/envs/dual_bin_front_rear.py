@@ -96,6 +96,7 @@ class DualBinFrontRear(Env):
     def checkWS(self):
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, -1])
+        plt.colorbar()
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
         plt.scatter(128, 128, color='g', linewidths=2, marker='+')
@@ -115,7 +116,6 @@ class DualBinFrontRear(Env):
         plt.scatter(160, 143, color='r', linewidths=1, marker='+')
         plt.scatter(240, 63, color='r', linewidths=1, marker='+')
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
-        plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs)[-1])
         fig.colorbar(obs0, ax=axs[0])

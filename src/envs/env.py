@@ -139,7 +139,7 @@ class Env:
         obs += b
         # obs *= 0.9
         # obs[obs < 0.007] = 0
-        return obs
+        return obs.clip(-0.02, 0.2)
 
     def getInHandOccupancyGridProj(self, crop, z, rot):
         rx, ry, rz = rot
@@ -209,35 +209,11 @@ class Env:
             crop = sk_transform.rotate(crop, np.rad2deg(-rz))
             return crop.reshape(1, self.in_hand_size, self.in_hand_size)
 
-    # def getHeightmapRaw(self):
-    #     # get img from camera
-    #     obs = self.img_proxy.getImage()
-    #     # cut img base on workspace size
-    #     pixel_range = (self.ws_x / self.cam_resolution, self.ws_y / self.cam_resolution)
-    #     obs = obs[242 - int(pixel_range[1]/2): 242 + int(pixel_range[1]/2),
-    #               320 - int(pixel_range[0]/2): 320 + int(pixel_range[0]/2)]
-    #     # process nans
-    #     imputer = SimpleImputer(missing_values=np.nan, strategy='median')
-    #     obs = imputer.fit_transform(obs)
-    #     # reverse img s.t. table is 0
-    #     obs = -obs
-    #     # obs -= obs.min()
-    #     obs -= -0.90987
-    #     # resize img to obs size
-    #     obs = skimage.transform.resize(obs, self.obs_size)
-    #     # rotate img
-    #     obs = scipy.ndimage.rotate(obs, 90)
-    #     # save obs copy
-    #     # self.rgbd_img = obs.copy()
-    #     obs = self._preProcessObs(obs)
-    #     # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
-    #     return obs
-
     def getHeightmapReconstruct(self):
         # get img from camera
         obss = []
-        for i in range(10):
-            depth, rgb = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0])
+        for i in range(1):
+            depth, rgb = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0], return_rgb=True)
             obss.append(depth)
         obs = np.median(obss, axis=0)
         # reverse img s.t. table is 0
@@ -250,7 +226,7 @@ class Env:
         # save obs copy
         # self.rgbd_img = obs.copy()
         obs = self._preProcessObs(obs)
-        obs = np.concatenate((obs.reshape(1, 1, obs.shape[0], obs.shape[1]), np.expand_dims(rgb, axis=0)), axis=1)
+        obs = np.concatenate((np.expand_dims(rgb, axis=0), obs.reshape(1, 1, obs.shape[0], obs.shape[1])), axis=1)
         # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
         return obs
 

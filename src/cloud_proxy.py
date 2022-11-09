@@ -6,6 +6,7 @@ from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2
 import ros_numpy
 from sklearn.impute import SimpleImputer
+from skimage.restoration import inpaint
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -97,15 +98,19 @@ class CloudProxy:
         depth = pts[2][ind][cumsum]
         depth[cumsum == 0] = np.nan
         depth = depth.reshape(img_size, img_size)
-        # mask = np.isnan(depth)
+        mask = np.isnan(depth)
         # depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
-        imputer = SimpleImputer(missing_values=np.nan, strategy='median')
-        depth = imputer.fit_transform(depth)
+        # imputer = SimpleImputer(missing_values=np.nan, strategy='median')
+        # depth = imputer.fit_transform(depth)
+        depth = inpaint.inpaint_biharmonic(depth, mask)
         depth = rotate(depth, 90)
+        assert depth.shape == (img_size, img_size)
 
         if return_rgb:
             rgb = pts[3:][:, ind][:, cumsum]
             rgb = rgb.T.reshape(img_size, img_size, 3)
+            rgb = rotate(rgb, 90)
+            rgb = rgb.transpose(2, 0, 1)
             return depth, rgb
         else:
             return depth
@@ -114,7 +119,7 @@ def main():
     rospy.init_node('test')
     cloudProxy = CloudProxy()
     while True:
-        obs, rgb = cloudProxy.getProjectImg(0.8, 128*2)
+        obs, rgb = cloudProxy.getProjectImg(0.8, 128*2, return_rgb=True)
         obs = -obs
         obs -= obs.min()
         # obs = skimage.transform.resize(obs, (90, 90))
@@ -122,7 +127,8 @@ def main():
         plt.imshow(obs)
         plt.colorbar()
         plt.figure()
-        plt.imshow(rgb)
+        plt.imshow(rgb.transpose(1, 2, 0).astype(int))
+        # plt.imshow(rgb.astype(int))
         plt.show()
 
 
