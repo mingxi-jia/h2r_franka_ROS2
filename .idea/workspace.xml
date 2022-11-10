@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="3ca85c84-8296-40ee-a38d-f3637e0ca793" name="Default Changelist" comment="adding rgbd image to the grasping env">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/cloud_proxy.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cloud_proxy.py" afterDir="false" />
+    <list default="true" id="3ca85c84-8296-40ee-a38d-f3637e0ca793" name="Default Changelist" comment="debugged rgbd obs">
       <change beforePath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/envs/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/env.py" afterDir="false" />
     </list>
@@ -100,7 +98,7 @@
       <workItem from="1667937228753" duration="6147000" />
       <workItem from="1668024962942" duration="655000" />
       <workItem from="1668026201068" duration="15000" />
-      <workItem from="1668026299603" duration="1561000" />
+      <workItem from="1668026299603" duration="4537000" />
     </task>
     <task id="LOCAL-00001" summary="rgbd grasp">
       <created>1667866875464</created>
@@ -123,7 +121,14 @@
       <option name="project" value="LOCAL" />
       <updated>1667934885860</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="debugged rgbd obs">
+      <created>1668027978862</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1668027978862</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -145,21 +150,32 @@
     <MESSAGE value="rgbd grasp" />
     <MESSAGE value="transforming pointcloud2 to rgbd image" />
     <MESSAGE value="adding rgbd image to the grasping env" />
-    <option name="LAST_COMMIT_MESSAGE" value="adding rgbd image to the grasping env" />
+    <MESSAGE value="debugged rgbd obs" />
+    <option name="LAST_COMMIT_MESSAGE" value="debugged rgbd obs" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/envs/dual_bin_front_rear.py</url>
-          <line>479</line>
-          <option name="timeStamp" value="15" />
+          <line>46</line>
+          <option name="timeStamp" value="17" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/envs/dual_bin_front_rear.py</url>
+          <line>41</line>
+          <option name="timeStamp" value="18" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/envs/env.py</url>
+          <line>228</line>
+          <option name="timeStamp" value="20" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$dual_bin_front_rear.coverage" NAME="dual_bin_front_rear Coverage Results" MODIFIED="1668026322535" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/envs" />
+    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$dual_bin_front_rear.coverage" NAME="dual_bin_front_rear Coverage Results" MODIFIED="1668035387470" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/envs" />
     <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$cloud_proxy.coverage" NAME="cloud_proxy Coverage Results" MODIFIED="1668023434928" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
 </project>

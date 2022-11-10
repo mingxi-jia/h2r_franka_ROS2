@@ -133,12 +133,13 @@ class Env:
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
         # obs = scipy.ndimage.median_filter(obs, 2)
-        b = np.linspace(-0.5, 0.5, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0)
+        b = np.linspace(-0.01, 0.015, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0)
         # a = np.linspace(0.5, 1, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0).T
-        b = b * 0.01
+        # b = b * 0.01
         obs += b
         # obs *= 0.9
         # obs[obs < 0.007] = 0
+        # return obs.clip(-0.02, 0.2)
         return obs.clip(-0.02, 0.2)
 
     def getInHandOccupancyGridProj(self, crop, z, rot):

@@ -15,7 +15,8 @@ class Bin():
         self.inner_padding = int((size_pixel - action_range_pixel) / 2)
         assert self.inner_padding != 0
         self.name = name
-        self.empty_thres = 0.02
+        # self.empty_thres = 0.02
+        self.empty_thres = 0.
 
     def GetVertexRC(self):
         '''
@@ -35,15 +36,15 @@ class Bin():
 
     def GetObs(self, obs):
         pixel_range = self.GetRangeRC()
-        return obs[0, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+        return obs[:, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
 
     def GetActionWiseObs(self, obs):
         bin_obs = self.GetObs(obs)
 
-        return bin_obs[:, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
+        return bin_obs[0, -1, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
     def IsEmpty(self, obs):
-        return np.all(np.asarray(self.GetActionWiseObs(obs[-1])) < self.empty_thres)
+        return np.all(np.asarray(self.GetActionWiseObs(obs[:, -2:-1])) < self.empty_thres)
 
 
 class DualBinFrontRear(Env):
@@ -117,9 +118,9 @@ class DualBinFrontRear(Env):
         plt.scatter(240, 63, color='r', linewidths=1, marker='+')
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
         fig, axs = plt.subplots(nrows=1, ncols=2)
-        obs0 = axs[0].imshow(self.left_bin.GetObs(obs)[-1])
+        obs0 = axs[0].imshow(self.left_bin.GetObs(obs)[0, -1])
         fig.colorbar(obs0, ax=axs[0])
-        obs1 = axs[1].imshow(self.right_bin.GetObs(obs)[-1])
+        obs1 = axs[1].imshow(self.right_bin.GetObs(obs)[0, -1])
         fig.colorbar(obs1, ax=axs[1])
         plt.show()
 
@@ -479,3 +480,4 @@ if __name__ == '__main__':
     env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256), obs_source='reconstruct', bin_size_pixel=112)
     while True:
         env.checkWS()
+        env.reset()
