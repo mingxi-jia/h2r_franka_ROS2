@@ -236,14 +236,20 @@ class Env:
     def getHeightmapReconstruct(self):
         # get img from camera
         obss = []
-        for i in range(10):
-            obss.append(self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0]))
+        i = 0
+        while i < 10:
+            obs = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0])
+            if obs.shape != (256, 256):
+                continue
+            else:
+                obss.append(obs)
+                i += 1
         obs = np.median(obss, axis=0)
         # reverse img s.t. table is 0
         obs = -obs
         # obs -= obs.min()
-        # obs -= -0.90987
         obs -= -1.0268  # for daul bin setup
+        # obs -= -1.045  # for HaoJie baseline
         # rotate img
         # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy

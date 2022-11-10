@@ -48,7 +48,11 @@ class Bin():
 
 
 class DualBinFrontRear(Env):
-    def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
+    # def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
+    #              cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
+    #              in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
+    #              z_heuristic=None):  # for ISEC table experiments
+    def __init__(self, ws_center=(-0.4448, -0.17, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
                  in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
                  z_heuristic=None):
@@ -95,14 +99,15 @@ class DualBinFrontRear(Env):
     def getObs(self, action=None):
         obs, in_hand = super(DualBinFrontRear, self).getObs(action=action)
         obs[obs > 0.2] = obs[obs < 0.2].mean()
-        return obs.clip(max=0.2, min=0), in_hand
+        # return obs.clip(max=0.2, min=0), in_hand
+        return obs.clip(max=0.2), in_hand
 
     def checkWS(self):
         obs, in_hand = self.getObs(None)
         plt.imshow(obs[0, 0])
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
-        plt.scatter(128, 128, color='g', linewidths=2, marker='+')
+        plt.scatter(128, 128, color='w', linewidths=2, marker='+')
         plt.scatter(self.left_bin.center_rc[1], self.left_bin.center_rc[0], color='r', linewidths=1, marker='+')
         plt.scatter(self.right_bin.center_rc[1], self.right_bin.center_rc[0], color='r', linewidths=1, marker='+')
         left_bin_vertexs_rc = self.left_bin.GetVertexRC()
@@ -119,6 +124,7 @@ class DualBinFrontRear(Env):
         plt.scatter(160, 143, color='r', linewidths=1, marker='+')
         plt.scatter(240, 63, color='r', linewidths=1, marker='+')
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
+        plt.scatter(128, 128, color='g', linewidths=2, marker='+')  # center of the workspace
         plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs))
@@ -457,7 +463,7 @@ if __name__ == '__main__':
     import rospy
 
     rospy.init_node('image_proxy')
-    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, cam_size=(256, 256),
+    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, ws_center=(-0.4448, -0.17, -0.147), cam_size=(256, 256),
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
