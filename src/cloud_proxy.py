@@ -111,6 +111,8 @@ class CloudProxy:
             rgb = rgb.T.reshape(img_size, img_size, 3)
             rgb = rotate(rgb, 90)
             rgb = rgb.transpose(2, 0, 1)
+            rgb /= 2550
+            rgb -= 0.05
             return depth, rgb
         else:
             return depth

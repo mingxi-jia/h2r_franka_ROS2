@@ -14,10 +14,11 @@ class Bin():
         self.size_pixel = size_pixel
         self.action_range_pixel = action_range_pixel
         self.inner_padding = int((size_pixel - action_range_pixel) / 2)
+        self.inner_inner_padding = 10
         assert self.inner_padding != 0
         self.name = name
-        # self.empty_thres = 0.02
-        self.empty_thres = 0.
+        self.empty_thres = 0.01
+        # self.empty_thres = 0.
 
     def GetVertexRC(self):
         '''
@@ -45,7 +46,8 @@ class Bin():
         return bin_obs[0, -1, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
     def IsEmpty(self, obs):
-        return np.all(np.asarray(self.GetActionWiseObs(obs[:, -2:-1])) < self.empty_thres)
+        return np.all(np.asarray(self.GetActionWiseObs(obs[:, -1:])[self.inner_inner_padding:-self.inner_inner_padding,
+                                 self.inner_inner_padding:-self.inner_inner_padding]) < self.empty_thres)
 
 
 class DualBinFrontRear(Env):
@@ -106,7 +108,7 @@ class DualBinFrontRear(Env):
     def checkWS(self):
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, -1])
-        plt.colorbar()
+        # plt.colorbar()
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
         plt.scatter(128, 128, color='w', linewidths=2, marker='+')
@@ -466,3 +468,4 @@ if __name__ == '__main__':
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
+        env.reset()

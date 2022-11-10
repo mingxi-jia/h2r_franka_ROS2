@@ -221,7 +221,8 @@ class Env:
         obs = -obs
         # obs -= obs.min()
         # obs -= -0.90987
-        obs -= -1.0268  # for daul bin setup
+        # obs -= -1.0268  # for daul bin setup
+        obs += 0.9868  # for daul bin setup
         # rotate img
         # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
