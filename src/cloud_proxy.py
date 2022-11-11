@@ -115,21 +115,22 @@ class CloudProxy:
             rgb = rgb.transpose(2, 0, 1)
             rgb /= 2550
             rgb -= 0.05
-            return depth, rgb if not return_mask else rgb, mask
+            if not return_mask:
+                return depth, rgb
+            else:
+                return depth, rgb, mask
         else:
             return depth
 
 def main():
     rospy.init_node('test')
     cloudProxy = CloudProxy()
+    img_ = None
     while True:
         obs, rgb, mask = cloudProxy.getProjectImg(0.8, 128*2, return_rgb=True, return_mask=True)
-        # obs = -obs
-        # obs -= obs.min()
-        # obs = skimage.transform.resize(obs, (90, 90))
-        plt.figure()
-        plt.imshow(mask)
-        plt.colorbar()
+        # plt.figure()
+        # plt.imshow(mask)
+        # plt.colorbar()
         plt.figure()
         plt.imshow(obs)
         plt.colorbar()
@@ -138,6 +139,11 @@ def main():
         img += 0.05
         img *= 2550
         plt.imshow(img.astype(int))
+        if img_ is not None:
+            plt.figure()
+            plt.imshow((img - img_).sum(axis=-1))
+            plt.colorbar()
+        img_ = img
         # plt.imshow(rgb.astype(int))
         plt.show()
 

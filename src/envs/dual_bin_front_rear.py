@@ -5,7 +5,8 @@ from src.envs.env import *
 from scipy.ndimage.interpolation import rotate
 import rospy
 from src.bin_constrain import ZProtect
-
+import matplotlib.pyplot as plt
+from torchvision import transforms as T
 
 class Bin():
     def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, name=None):
@@ -17,8 +18,14 @@ class Bin():
         self.inner_inner_padding = 10
         assert self.inner_padding != 0
         self.name = name
-        self.empty_thres = 0.01
+        self.empty_thres = 6
+        self.empty_img = None
         # self.empty_thres = 0.
+        self.blurrer = T.GaussianBlur(kernel_size=5, sigma=1)
+
+    def reset(self, obs):
+        self.empty_img = self.GetActionWiseObs(obs)
+        self.empty_img = self.blurrer(self.empty_img)
 
     def GetVertexRC(self):
         '''
@@ -43,11 +50,18 @@ class Bin():
     def GetActionWiseObs(self, obs):
         bin_obs = self.GetObs(obs)
 
-        return bin_obs[0, -1, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
+        return bin_obs[0, :, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
     def IsEmpty(self, obs):
-        return np.all(np.asarray(self.GetActionWiseObs(obs[:, -1:])[self.inner_inner_padding:-self.inner_inner_padding,
-                                 self.inner_inner_padding:-self.inner_inner_padding]) < self.empty_thres)
+        # wheather there are less than empty_thres pixles that changed less than empty_thres
+        bin_img = self.GetActionWiseObs(obs)
+        bin_img = self.blurrer(bin_img)
+        diff_img = bin_img - self.empty_img
+        diff_img = (diff_img[:-1] * 255).abs().sum(axis=0)
+        is_empyt = (diff_img > self.empty_thres).sum() < self.empty_thres
+        if is_empyt:
+            self.reset(obs)
+        return is_empyt
 
 
 class DualBinFrontRear(Env):
@@ -292,6 +306,14 @@ class DualBinFrontRear(Env):
         cam_obs, _ = self.getObs(None)
         # print('getting obs')
         if self.picking_bin_id is None:
+            cam_obs, _ = self.getObs(None)  # Wait for camera adjust img
+            is_bins_empty = bool(input('Are bins loaded?'))
+            if is_bins_empty:
+                for id, bin in enumerate(self.bins):
+                    bin.reset(cam_obs)
+            else:
+                raise NotImplementedError('Please load bins.')
+            cam_obs, _ = self.getObs(None)
             for id, bin in enumerate(self.bins):
                 if not bin.IsEmpty(cam_obs):
                     self.picking_bin_id = id
