@@ -2,11 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3ca85c84-8296-40ee-a38d-f3637e0ca793" name="Default Changelist" comment="debugged rgbd obs">
-      <change beforePath="$PROJECT_DIR$/.idea/helping_hands_rl_ur5.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/helping_hands_rl_ur5.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/rgbd_proxy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/cloud_proxy.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cloud_proxy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/envs/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/env.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ur5.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ur5.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,10 +31,15 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/src" />
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
-  <component name="RunManager" selected="Python.dual_bin_front_rear">
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.cloud_proxy">
     <configuration name="cloud_proxy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="helping_hands_rl_ur5" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -81,10 +84,33 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="rgbd_proxy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="helping_hands_rl_ur5" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/rgbd_proxy.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.dual_bin_front_rear" />
         <item itemvalue="Python.cloud_proxy" />
+        <item itemvalue="Python.rgbd_proxy" />
+        <item itemvalue="Python.dual_bin_front_rear" />
       </list>
     </recent_temporary>
   </component>
@@ -103,6 +129,7 @@
       <workItem from="1668026201068" duration="15000" />
       <workItem from="1668026299603" duration="4537000" />
       <workItem from="1668045216851" duration="2705000" />
+      <workItem from="1668120933795" duration="4389000" />
     </task>
     <task id="LOCAL-00001" summary="rgbd grasp">
       <created>1667866875464</created>
@@ -170,6 +197,7 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$dual_bin_front_rear.coverage" NAME="dual_bin_front_rear Coverage Results" MODIFIED="1668046998712" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/envs" />
-    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$cloud_proxy.coverage" NAME="cloud_proxy Coverage Results" MODIFIED="1668023434928" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$cloud_proxy.coverage" NAME="cloud_proxy Coverage Results" MODIFIED="1668128334160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$rgbd_proxy.coverage" NAME="rgbd_proxy Coverage Results" MODIFIED="1668126639133" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
 </project>

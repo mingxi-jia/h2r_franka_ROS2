@@ -14,50 +14,56 @@ import skimage.transform
 from skimage.transform import rotate
 # import scipy
 
-class CloudProxy:
+class RGBD_Proxy:
     def __init__(self):
-        # self.topic = '/camera/depth/points'
-        # self.topic = '/kinect2/hd/points'
-        self.topic = '/depth_to_rgb/points'
-        self.sub = rospy.Subscriber(self.topic, PointCloud2, self.callbackCloud, queue_size=1)
-        self.msg = None
-        self.image = None
-        self.has_cloud = False
+        self.d_topic = '/depth_to_rgb/image_raw'
+        self.d_sub = rospy.Subscriber(self.d_topic, Image, self.callbackD, queue_size=1)
+        self.rgb_topic = '/rgb/image_raw'
+        self.rgb_sub = rospy.Subscriber(self.rgb_topic, Image, self.callbackRGB, queue_size=1)
+        self.d_img = None
+        self.rgb_img = None
+        self.has_d = False
+        self.has_rgb = False
 
-    def callbackCloud(self, msg):
-        if not self.has_cloud:
-            self.msg = msg
-            self.has_cloud = True
+    def callbackD(self, msg):
+        if not self.has_d:
+            self.d_img = msg
+            self.has_d = True
 
-    def getCloud(self):
+    def callbackRGB(self, msg):
+        if not self.has_rgb:
+            self.rgb_img = msg
+            self.has_rgb = True
+
+    def getRGBD(self):
         """
         get cloud in camera frame.
         :return: point cloud, cloud frame, cloud time
         """
-        self.has_cloud = False
-        while not self.has_cloud:
+        self.has_d, self.has_rgb = False, False
+        while not self.has_d or not self.has_rgb:
             rospy.sleep(0.01)
-        cloudTime = self.msg.header.stamp
-        cloudFrame = self.msg.header.frame_id
-        # cloud = np.array(list(point_cloud2.read_points(self.msg)))[:, 0:3]
-        pc = ros_numpy.numpify(self.msg)
-        pc = ros_numpy.point_cloud2.split_rgb_field(pc)
-        height = pc.shape[0]
-        width = pc.shape[1]
-        cloud = np.zeros((height * width, 6), dtype=np.float32)
-        cloud[:, 0] = np.resize(pc['x'], height * width)
-        cloud[:, 1] = np.resize(pc['y'], height * width)
-        cloud[:, 2] = np.resize(pc['z'], height * width)
-        cloud[:, 3] = np.resize(pc['r'], height * width)
-        cloud[:, 4] = np.resize(pc['g'], height * width)
-        cloud[:, 5] = np.resize(pc['b'], height * width)
-        mask = np.logical_not(np.isnan(cloud).any(axis=1))
-        cloud = cloud[mask]
-        # print("Received Structure cloud with {} points.".format(cloud.shape[0]))
-        return cloud
+        d_img = ros_numpy.numpify(self.d_img)
+        rgb_img = ros_numpy.numpify(self.rgb_img)
+        return d_img, rgb_img
+        # d_img = ros_numpy.image.
+        # pc = ros_numpy.point_cloud2.split_rgb_field(pc)
+        # height = pc.shape[0]
+        # width = pc.shape[1]
+        # cloud = np.zeros((height * width, 6), dtype=np.float32)
+        # cloud[:, 0] = np.resize(pc['x'], height * width)
+        # cloud[:, 1] = np.resize(pc['y'], height * width)
+        # cloud[:, 2] = np.resize(pc['z'], height * width)
+        # cloud[:, 3] = np.resize(pc['r'], height * width)
+        # cloud[:, 4] = np.resize(pc['g'], height * width)
+        # cloud[:, 5] = np.resize(pc['b'], height * width)
+        # mask = np.logical_not(np.isnan(cloud).any(axis=1))
+        # cloud = cloud[mask]
+        # # print("Received Structure cloud with {} points.".format(cloud.shape[0]))
+        # return cloud
 
-    def getProjectImg(self, target_size, img_size, return_rgb=False, return_mask=False):
-        cloud = self.getCloud()
+    def getProjectImg(self, target_size, img_size, return_rgb=False):  #ToDo
+        d_img, rgb_img = self.getRGBD()
         view_matrix = np.eye(4)
         view_matrix[:3, 3] = [-0.007, -0.013, 0]
         # augment = np.ones((1, cloud.shape[0]))
@@ -98,49 +104,41 @@ class CloudProxy:
         depth = pts[2][ind][cumsum]
         depth[cumsum == 0] = np.nan
         depth = depth.reshape(img_size, img_size)
+        mask = np.isnan(depth)
         # depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
         # imputer = SimpleImputer(missing_values=np.nan, strategy='median')
         # depth = imputer.fit_transform(depth)
-        depth = rotate(depth, 90)
-        mask = np.isnan(depth)
         depth = inpaint.inpaint_biharmonic(depth, mask)
-        # depth[mask] = 0
+        depth = rotate(depth, 90)
         assert depth.shape == (img_size, img_size)
 
         if return_rgb:
             rgb = pts[3:][:, ind][:, cumsum]
             rgb = rgb.T.reshape(img_size, img_size, 3)
             rgb = rotate(rgb, 90)
-            rgb = inpaint.inpaint_biharmonic(rgb, mask, channel_axis=-1)
             rgb = rgb.transpose(2, 0, 1)
             rgb /= 2550
             rgb -= 0.05
-            return depth, rgb if not return_mask else rgb, mask
+            return depth, rgb
         else:
             return depth
 
 def main():
     rospy.init_node('test')
-    cloudProxy = CloudProxy()
+    cloudProxy = RGBD_Proxy()
     while True:
-        obs, rgb, mask = cloudProxy.getProjectImg(0.8, 128*2, return_rgb=True, return_mask=True)
-        # obs = -obs
-        # obs -= obs.min()
+        obs, rgb = cloudProxy.getProjectImg(0.8, 128*2, return_rgb=True)
+        obs = -obs
+        obs -= obs.min()
         # obs = skimage.transform.resize(obs, (90, 90))
-        plt.figure()
-        plt.imshow(mask)
-        plt.colorbar()
         plt.figure()
         plt.imshow(obs)
         plt.colorbar()
         plt.figure()
-        img = rgb.transpose(1, 2, 0)
-        img += 0.05
-        img *= 2550
-        plt.imshow(img.astype(int))
+        plt.imshow(rgb.transpose(1, 2, 0).astype(int))
         # plt.imshow(rgb.astype(int))
         plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  #ToDo
     main()
