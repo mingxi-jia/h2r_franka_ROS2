@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from torchvision import transforms as T
 
 class Bin():
-    def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, name=None):
+    def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, sensor_type, name=None, empty_thres=10):
         self.center_rc = center_rc
         self.center_ws = center_ws
         self.size_pixel = size_pixel
@@ -18,14 +18,20 @@ class Bin():
         self.inner_inner_padding = 10
         assert self.inner_padding != 0
         self.name = name
-        self.empty_thres = 10
+        self.empty_thres = empty_thres
         self.empty_img = None
+        self.last_img = None
+        self.sensor_type = sensor_type
         # self.empty_thres = 0.
         self.blurrer = T.GaussianBlur(kernel_size=7, sigma=1.5)
 
     def reset(self, obs):
-        self.empty_img = self.GetActionWiseObs(obs)
+        self.empty_img = self.GetActionWiseObs(obs, pre_process=False)
         self.empty_img = self.blurrer(self.empty_img)
+
+    def updateLastImg(self, obs):
+        last_img = self.GetActionWiseObs(obs, pre_process=False)
+        self.last_img = self.blurrer(last_img)
 
     def GetVertexRC(self):
         '''
@@ -43,20 +49,26 @@ class Bin():
         return [int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[0] + self.size_pixel / 2),
                 int(self.center_rc[1] - self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)]
 
-    def GetObs(self, obs):
+    def GetObs(self, obs, pre_process=True):
         pixel_range = self.GetRangeRC()
-        return obs[:, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+        bin_obs = obs[:, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+        if pre_process:
+            if self.sensor_type == 'nrgbd':
+                bin_obs[:, :3] /= 10
+            elif self.sensor_type == '000d':
+                bin_obs[:, :3] = 0
+        return bin_obs
 
-    def GetActionWiseObs(self, obs):
-        bin_obs = self.GetObs(obs)
+    def GetActionWiseObs(self, obs, pre_process=True):
+        bin_obs = self.GetObs(obs, pre_process=pre_process)
 
         return bin_obs[0, :, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
-    def GetDifferenceImage(self, obs):
+    def IsImageDifferent(self, new_img, baseline_img):
         # wheather there are less than empty_thres pixles that changed less than empty_thres
-        bin_img = self.GetActionWiseObs(obs)
+        bin_img = self.GetActionWiseObs(new_img, pre_process=False)
         bin_img = self.blurrer(bin_img)
-        diff_img = bin_img - self.empty_img
+        diff_img = bin_img - baseline_img
         diff_img = (diff_img[:-1] * 255).abs().sum(axis=0)
         # plt.figure()
         # plt.imshow(diff_img)
@@ -64,27 +76,30 @@ class Bin():
         # plt.title('Difference image for ' + self.name)
         # plt.show()
         diff_img = diff_img > self.empty_thres
-        return diff_img
+        return diff_img.sum() < self.empty_thres
 
     def IsEmpty(self, obs):
-        diff_img = self.GetDifferenceImage(obs)
-        is_empty = diff_img.sum() < self.empty_thres
+        is_empty = self.IsImageDifferent(obs, self.empty_img)
         # if is_empty:
         #     self.reset(obs)
         return is_empty
 
+    def IsObjectPlaced(self, obs):
+        if self.last_img is not None:
+            return self.IsImageDifferent(obs, self.last_img)
+        else:
+            self.updateLastImg(obs)
+            return None
 
 class DualBinFrontRear(Env):
-    # def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
-    #              cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
-    #              in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
-    #              z_heuristic=None):  # for ISEC table experiments
-    def __init__(self, ws_center=(-0.4448, -0.17, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155,
+    def __init__(self, ws_center=(-0.4448, -0.17, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155, sensor_type='rgbd',
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
                  in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
                  z_heuristic=None):
-        super().__init__(ws_center, ws_x, ws_y, cam_resolution, cam_size, action_sequence, in_hand_mode, pick_offset,
-                         place_offset, in_hand_size, obs_source, safe_z_region, place_open_pos)
+        super().__init__(ws_center=ws_center, ws_x=ws_x, ws_y=ws_y, cam_resolution=cam_resolution, obs_size=cam_size,
+                         action_sequence=action_sequence, in_hand_mode=in_hand_mode, pick_offset=pick_offset,
+                         place_offset=place_offset, in_hand_size=in_hand_size, obs_source=obs_source,
+                         safe_z_region=safe_z_region, place_open_pos=place_open_pos)
 
         self.gripper_depth = 0.055
         # self.gripper_depth = 0.0
@@ -102,10 +117,11 @@ class DualBinFrontRear(Env):
         # self.bin_size
         self.bin_size_pixel = bin_size_pixel
         self.in_hand_size = 32
+        empty_thres = 100
         self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
-                            name='left_bin')
+                            sensor_type=sensor_type, name='left_bin', empty_thres=empty_thres)
         self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
-                             name='right_bin')
+                             sensor_type=sensor_type, name='right_bin', empty_thres=empty_thres)
         self.move_action = ((left_bin_center_ws[0] + right_bin_center_ws[0]) / 2,
                             (left_bin_center_ws[1] + right_bin_center_ws[1]) / 2,
                             0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
@@ -157,10 +173,15 @@ class DualBinFrontRear(Env):
         plt.scatter(128, 128, color='g', linewidths=2, marker='+')  # center of the workspace
         plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
-        obs0 = axs[0].imshow(self.left_bin.GetObs(obs)[0, -1])
+        obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, -1].clamp(-0.02, 0.015))
         fig.colorbar(obs0, ax=axs[0])
-        obs1 = axs[1].imshow(self.right_bin.GetObs(obs)[0, -1])
+        obs1 = axs[1].imshow(self.right_bin.GetObs(obs, pre_process=True)[0, -1].clamp(-0.02, 0.015))
         fig.colorbar(obs1, ax=axs[1])
+
+        fig, axs = plt.subplots(nrows=1, ncols=2)
+        obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, :-1].permute(1,2,0))
+        obs1 = axs[1].imshow(self.right_bin.GetObs(obs, pre_process=True)[0, :-1].permute(1,2,0))
+
         plt.show()
 
     def pixel2ws(self, pixel, rc=None):
@@ -318,11 +339,11 @@ class DualBinFrontRear(Env):
         cam_obs, _ = self.getObs(None)
         # print('getting obs')
         if self.picking_bin_id is None:
-            cam_obs, _ = self.getObs(None)  # Wait for camera adjust img
+            empty_obs, _ = self.getObs(None)  # Wait for camera adjust img
             is_bins_empty = bool(input('Are bins loaded?'))
             if is_bins_empty:
                 for id, bin in enumerate(self.bins):
-                    bin.reset(cam_obs)
+                    bin.reset(empty_obs)
             else:
                 raise NotImplementedError('Please load bins.')
             cam_obs, _ = self.getObs(None)

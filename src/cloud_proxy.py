@@ -123,8 +123,8 @@ class CloudProxy:
             rgb = np.nanmedian(rgbs, axis=0)
             rgb = inpaint.inpaint_biharmonic(rgb, mask, channel_axis=-1)
             rgb = rgb.transpose(2, 0, 1)
-            rgb /= 2550
-            rgb -= 0.05
+            rgb /= 255
+            rgb -= 0.5
             if not return_mask:
                 return depth, rgb
             else:
