@@ -212,11 +212,8 @@ class Env:
 
     def getHeightmapReconstruct(self):
         # get img from camera
-        obss = []
-        for i in range(1):
-            depth, rgb = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0], return_rgb=True)
-            obss.append(depth)
-        obs = np.median(obss, axis=0)
+        obs, rgb = self.cloud_proxy.getProjectImg(self.ws_x, self.obs_size[0], return_rgb=True)
+
         # reverse img s.t. table is 0
         obs = -obs
         # obs -= obs.min()

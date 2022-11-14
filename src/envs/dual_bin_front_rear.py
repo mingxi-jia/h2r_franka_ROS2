@@ -18,10 +18,10 @@ class Bin():
         self.inner_inner_padding = 10
         assert self.inner_padding != 0
         self.name = name
-        self.empty_thres = 6
+        self.empty_thres = 10
         self.empty_img = None
         # self.empty_thres = 0.
-        self.blurrer = T.GaussianBlur(kernel_size=5, sigma=1)
+        self.blurrer = T.GaussianBlur(kernel_size=7, sigma=1.5)
 
     def reset(self, obs):
         self.empty_img = self.GetActionWiseObs(obs)
@@ -52,16 +52,26 @@ class Bin():
 
         return bin_obs[0, :, self.inner_padding:-self.inner_padding, self.inner_padding:-self.inner_padding]
 
-    def IsEmpty(self, obs):
+    def GetDifferenceImage(self, obs):
         # wheather there are less than empty_thres pixles that changed less than empty_thres
         bin_img = self.GetActionWiseObs(obs)
         bin_img = self.blurrer(bin_img)
         diff_img = bin_img - self.empty_img
         diff_img = (diff_img[:-1] * 255).abs().sum(axis=0)
-        is_empyt = (diff_img > self.empty_thres).sum() < self.empty_thres
-        if is_empyt:
-            self.reset(obs)
-        return is_empyt
+        # plt.figure()
+        # plt.imshow(diff_img)
+        # plt.colorbar()
+        # plt.title('Difference image for ' + self.name)
+        # plt.show()
+        diff_img = diff_img > self.empty_thres
+        return diff_img
+
+    def IsEmpty(self, obs):
+        diff_img = self.GetDifferenceImage(obs)
+        is_empty = diff_img.sum() < self.empty_thres
+        # if is_empty:
+        #     self.reset(obs)
+        return is_empty
 
 
 class DualBinFrontRear(Env):
@@ -103,6 +113,8 @@ class DualBinFrontRear(Env):
         self.picking_bin_id = None
         self.r_action = (0, 0, 1.571)
         self.z_heuristic = z_heuristic
+        self.num_step = 0
+        self.max_step = 45
 
         # bin z protection
         self.z_bin_constrain = ZProtect(bin_size + 0.035, None, 55, 0.1)
@@ -339,7 +351,8 @@ class DualBinFrontRear(Env):
             # print('got request')
             cam_obs, _ = self.getObs(None)
             # print('got cam_obs')
-            if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
+            if self.bins[self.picking_bin_id].IsEmpty(cam_obs) or self.num_step > self.max_step:  # if one episode ends
+                self.num_step = 0
                 # self.IsRobotReady.get_var('sensor_processing')
                 self.picking_bin_id = (self.picking_bin_id + 1) % 2
                 done = True
@@ -437,6 +450,7 @@ class DualBinFrontRear(Env):
         # pick
         p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
         self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
+        self.num_step += 1
         r_action = r
         # move
         x, y, z, r = self.move_action
@@ -452,7 +466,8 @@ class DualBinFrontRear(Env):
         self.old_rgbd_img = self.rgbd_img
         # Observation
         cam_obs, _ = self.getObs(None)
-        if self.bins[self.picking_bin_id].IsEmpty(cam_obs):  # if one episode ends
+        if self.bins[self.picking_bin_id].IsEmpty(cam_obs) or self.num_step > self.max_step:  # if one episode ends
+            self.num_step = 0
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
             done = True
             # place at the center of the bin
@@ -490,4 +505,4 @@ if __name__ == '__main__':
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
-        env.reset()
+        # env.reset()
