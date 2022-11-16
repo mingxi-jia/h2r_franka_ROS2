@@ -15,10 +15,11 @@ class Bin():
         self.size_pixel = size_pixel
         self.action_range_pixel = action_range_pixel
         self.inner_padding = int((size_pixel - action_range_pixel) / 2)
-        self.inner_inner_padding = 10
+        # self.inner_inner_padding = 10
         assert self.inner_padding != 0
         self.name = name
-        self.empty_thres = empty_thres
+        self.empty_rgb_thres = empty_thres
+        self.empty_pixel_thres = 10
         self.empty_img = None
         self.last_img = None
         self.sensor_type = sensor_type
@@ -75,8 +76,8 @@ class Bin():
         # plt.colorbar()
         # plt.title('Difference image for ' + self.name)
         # plt.show()
-        diff_img = diff_img > self.empty_thres
-        return diff_img.sum() < self.empty_thres
+        diff_img = diff_img > self.empty_rgb_thres
+        return diff_img.sum() < self.empty_pixel_thres
 
     def IsEmpty(self, obs):
         is_empty = self.IsImageDifferent(obs, self.empty_img)
@@ -117,7 +118,7 @@ class DualBinFrontRear(Env):
         # self.bin_size
         self.bin_size_pixel = bin_size_pixel
         self.in_hand_size = 32
-        empty_thres = 100
+        empty_thres = 50
         self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
                             sensor_type=sensor_type, name='left_bin', empty_thres=empty_thres)
         self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
@@ -181,6 +182,16 @@ class DualBinFrontRear(Env):
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, :-1].permute(1,2,0))
         obs1 = axs[1].imshow(self.right_bin.GetObs(obs, pre_process=True)[0, :-1].permute(1,2,0))
+
+        fig, axs = plt.subplots(nrows=1, ncols=2)
+        img0 = self.left_bin.GetObs(obs, pre_process=False)[0, :-1].permute(1,2,0)
+        img0 += 0.5
+        img0 *= 255
+        obs0 = axs[0].imshow(img0.int())
+        img1 = self.right_bin.GetObs(obs, pre_process=False)[0, :-1].permute(1,2,0)
+        img1 += 0.5
+        img1 *= 255
+        obs1 = axs[1].imshow(img1.int())
 
         plt.show()
 
@@ -526,4 +537,4 @@ if __name__ == '__main__':
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
-        # env.reset()
+        env.reset()
