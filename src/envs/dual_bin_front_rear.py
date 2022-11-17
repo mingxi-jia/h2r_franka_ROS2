@@ -58,6 +58,13 @@ class Bin():
                 bin_obs[:, :3] /= 10
             elif self.sensor_type == '000d':
                 bin_obs[:, :3] = 0
+            elif self.sensor_type == 'nrgb0':
+                bin_obs[:, :3] /= 10
+                bin_obs[:, :-1] = 0
+            elif self.sensor_type == 'd':
+                bin_obs = bin_obs[:, -1]
+            else:
+                assert self.sensor_type == 'rgbd'
         return bin_obs
 
     def GetActionWiseObs(self, obs, pre_process=True):
@@ -151,7 +158,7 @@ class DualBinFrontRear(Env):
     def checkWS(self):
         obs, in_hand = env.getObs(None)
         plt.imshow(obs[0, -1])
-        # plt.colorbar()
+        plt.colorbar()
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
         plt.scatter(128, 128, color='w', linewidths=2, marker='+')
@@ -172,7 +179,7 @@ class DualBinFrontRear(Env):
         plt.scatter(240, 63, color='r', linewidths=1, marker='+')
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
         plt.scatter(128, 128, color='g', linewidths=2, marker='+')  # center of the workspace
-        plt.colorbar()
+        # plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, -1].clamp(-0.02, 0.015))
         fig.colorbar(obs0, ax=axs[0])
@@ -212,7 +219,8 @@ class DualBinFrontRear(Env):
                 return (0, 0, 0, 0, 0)
         while 1:
             xy = np.random.normal(0, self.action_range / 6, (2))
-            if ((-(self.action_range / 2) < xy) & (xy < (self.action_range / 2))).all():
+            # place obj in 2/3 size of workspace
+            if ((-(self.action_range / 3) < xy) & (xy < (self.action_range / 3))).all():
                 break
         rz = np.random.uniform(0, np.pi)
         if self.action_sequence == 'xyrp':
@@ -498,7 +506,7 @@ class DualBinFrontRear(Env):
         self.old_rgbd_img = self.rgbd_img
         # Observation
         cam_obs, _ = self.getObs(None)
-        if self.bins[self.picking_bin_id].IsEmpty(cam_obs) or self.num_step > self.max_step:  # if one episode ends
+        if self.bins[self.picking_bin_id].IsEmpty(cam_obs) or self.num_step > self.max_step:  # if the bin is emptyed
             self.num_step = 0
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
             done = True
@@ -507,6 +515,7 @@ class DualBinFrontRear(Env):
             z = self.release_z + self.workspace[2][0]
             self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
             self.old_rgbd_img = self.rgbd_img
+            rospy.sleep(0.2)
             cam_obs, _ = self.getObs(None)
         else:
             done = False

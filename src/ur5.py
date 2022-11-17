@@ -310,10 +310,10 @@ class UR5:
         pre_pos[2] += self.place_offset
         if move2_prepose:
             self.moveToP(*pre_pos, rx, ry, rz)
-        self.moveToPT(x, y, z, rx, ry, rz, t=1.2)
+        self.moveToPT(x, y, z, rx, ry, rz, t=1)
         # self.gripper.openGripper(position=self.place_open_pos)
         self.gripper.openGripper()
-        rospy.sleep(0.2)
+        rospy.sleep(0.3)
         self.holding_state = 0
         if move2_prepose:
             self.moveToP(*pre_pos, rx, ry, rz)

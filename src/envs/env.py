@@ -11,6 +11,7 @@ import skimage.transform as sk_transform
 from scipy.ndimage import median_filter
 from src.utils import transformation
 from sklearn.impute import SimpleImputer
+from skimage.restoration import inpaint
 
 class Env:
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
@@ -132,15 +133,13 @@ class Env:
 
         return motion_primative, x, y, z, rot
     def _preProcessObs(self, obs):
-        # obs = scipy.ndimage.median_filter(obs, 2)
+        obs_celing = 0.2
+        obs_botton = -0.02
         b = np.linspace(-0.01, 0.015, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0)
-        # a = np.linspace(0.5, 1, self.rgbd_img_size).reshape(1, self.rgbd_img_size).repeat(self.rgbd_img_size, axis=0).T
-        # b = b * 0.01
         obs += b
-        # obs *= 0.9
-        # obs[obs < 0.007] = 0
-        # return obs.clip(-0.02, 0.2)
-        return obs.clip(-0.02, 0.2)
+        mask = obs > obs_celing
+        obs = inpaint.inpaint_biharmonic(obs, mask)
+        return obs.clip(obs_botton, obs_celing)
 
     def getInHandOccupancyGridProj(self, crop, z, rot):
         rx, ry, rz = rot
@@ -219,7 +218,7 @@ class Env:
         # obs -= obs.min()
         # obs -= -0.90987
         # obs -= -1.0268  # for daul bin setup
-        obs += 0.9968  # for daul bin setup
+        obs += 1  # for daul bin setup
         # rotate img
         # obs = scipy.ndimage.rotate(obs, 180)
         # save obs copy
