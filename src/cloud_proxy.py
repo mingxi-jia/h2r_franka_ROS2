@@ -58,7 +58,7 @@ class CloudProxy:
 
     def getProjectImg(self, target_size, img_size, return_rgb=False, return_mask=False):
         clouds = []
-        for i in range(2):
+        for i in range(3):
             clouds.append(self.getCloud())
         view_matrix = np.eye(4)
         view_matrix[:3, 3] = [-0.007, -0.013, 0]

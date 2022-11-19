@@ -24,7 +24,7 @@ class Bin():
         self.last_img = None
         self.sensor_type = sensor_type
         # self.empty_thres = 0.
-        self.blurrer = T.GaussianBlur(kernel_size=7, sigma=1.5)
+        self.blurrer = T.GaussianBlur(kernel_size=7, sigma=3)
 
     def reset(self, obs):
         self.empty_img = self.GetActionWiseObs(obs, pre_process=False)
@@ -139,6 +139,7 @@ class DualBinFrontRear(Env):
         self.z_heuristic = z_heuristic
         self.num_step = 0
         self.max_step = 45
+        self.srd = None
 
         # bin z protection
         self.z_bin_constrain = ZProtect(bin_size + 0.035, None, 55, 0.1)
@@ -429,7 +430,7 @@ class DualBinFrontRear(Env):
         # place_action = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = self.r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.9, t_wait_reducing=0.8)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1, t_wait_reducing=0.5)
         # self.ur5.moveToBinCenter()
         reward = self.ur5.checkGripperState()
         # rospy.sleep(0.2)
@@ -481,6 +482,13 @@ class DualBinFrontRear(Env):
                 break
         # print('robot is ready for picking')
 
+    def sendAction(self, action):
+        self.srd = self.step(action)
+
+    def getSRD(self):
+        assert self.srd is not None
+        return self.srd
+
     def step(self, action):
         '''
         In this env, the agent only control pick action.
@@ -528,9 +536,9 @@ class DualBinFrontRear(Env):
 
         return torch.tensor([0], dtype=torch.float32).view(1),\
                torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
-               torch.tensor(obs, dtype=torch.float32).to(torch.float32),\
-               torch.tensor(reward, dtype=torch.float32).view(1),\
-               torch.tensor(done, dtype=torch.float32).view(1)
+               torch.tensor(obs.clone().detach(), dtype=torch.float32).to(torch.float32),\
+               torch.tensor(reward.clone().detach(), dtype=torch.float32).view(1),\
+               torch.tensor(done.clone().detach(), dtype=torch.float32).view(1)
 
     def getStepLeft(self):
         return torch.tensor(100).view(1)
