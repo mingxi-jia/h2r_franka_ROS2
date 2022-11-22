@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="3ca85c84-8296-40ee-a38d-f3637e0ca793" name="Default Changelist" comment="debugged rgbd obs">
-      <change afterPath="$PROJECT_DIR$/src/rgbd_proxy.py" afterDir="false" />
+    <list default="true" id="3ca85c84-8296-40ee-a38d-f3637e0ca793" name="Default Changelist" comment="multi thread training">
+      <change beforePath="$PROJECT_DIR$/.idea/helping_hands_rl_ur5.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/helping_hands_rl_ur5.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/cloud_proxy.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/cloud_proxy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/envs/dual_bin_front_rear.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ur5.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ur5.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,7 +32,7 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/src" />
+    <property name="last_opened_file_path" value="$USER_HOME$/Desktop" />
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="RecentsManager">
@@ -39,7 +40,7 @@
       <recent name="$PROJECT_DIR$/src" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.cloud_proxy">
+  <component name="RunManager" selected="Python.dual_bin_front_rear">
     <configuration name="cloud_proxy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="helping_hands_rl_ur5" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -108,9 +109,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.dual_bin_front_rear" />
         <item itemvalue="Python.cloud_proxy" />
         <item itemvalue="Python.rgbd_proxy" />
-        <item itemvalue="Python.dual_bin_front_rear" />
       </list>
     </recent_temporary>
   </component>
@@ -130,6 +131,10 @@
       <workItem from="1668026299603" duration="4537000" />
       <workItem from="1668045216851" duration="2705000" />
       <workItem from="1668120933795" duration="4389000" />
+      <workItem from="1668189187714" duration="9494000" />
+      <workItem from="1668446513506" duration="26299000" />
+      <workItem from="1668723853507" duration="1723000" />
+      <workItem from="1668800576979" duration="14054000" />
     </task>
     <task id="LOCAL-00001" summary="rgbd grasp">
       <created>1667866875464</created>
@@ -159,7 +164,35 @@
       <option name="project" value="LOCAL" />
       <updated>1668027978862</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="speed up get rgbd image">
+      <created>1668450342008</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1668450342008</updated>
+    </task>
+    <task id="LOCAL-00006" summary="add sensor type">
+      <created>1668469951633</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1668469951633</updated>
+    </task>
+    <task id="LOCAL-00007" summary="debugged rgbd training">
+      <created>1668562466138</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1668562466138</updated>
+    </task>
+    <task id="LOCAL-00008" summary="multi thread training">
+      <created>1668818745457</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1668818745457</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -182,22 +215,26 @@
     <MESSAGE value="transforming pointcloud2 to rgbd image" />
     <MESSAGE value="adding rgbd image to the grasping env" />
     <MESSAGE value="debugged rgbd obs" />
-    <option name="LAST_COMMIT_MESSAGE" value="debugged rgbd obs" />
+    <MESSAGE value="speed up get rgbd image" />
+    <MESSAGE value="add sensor type" />
+    <MESSAGE value="debugged rgbd training" />
+    <MESSAGE value="multi thread training" />
+    <option name="LAST_COMMIT_MESSAGE" value="multi thread training" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/envs/dual_bin_front_rear.py</url>
-          <line>48</line>
-          <option name="timeStamp" value="24" />
+          <line>581</line>
+          <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$dual_bin_front_rear.coverage" NAME="dual_bin_front_rear Coverage Results" MODIFIED="1668046998712" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/envs" />
-    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$cloud_proxy.coverage" NAME="cloud_proxy Coverage Results" MODIFIED="1668128334160" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$dual_bin_front_rear.coverage" NAME="dual_bin_front_rear Coverage Results" MODIFIED="1668805681945" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/envs" />
+    <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$cloud_proxy.coverage" NAME="cloud_proxy Coverage Results" MODIFIED="1668189987364" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
     <SUITE FILE_PATH="coverage/helping_hands_rl_ur5$rgbd_proxy.coverage" NAME="rgbd_proxy Coverage Results" MODIFIED="1668126639133" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
 </project>
