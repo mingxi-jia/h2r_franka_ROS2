@@ -7,6 +7,7 @@ import rospy
 from src.bin_constrain import ZProtect
 import matplotlib.pyplot as plt
 from torchvision import transforms as T
+import threading
 
 class Bin():
     def __init__(self, center_rc, center_ws, size_pixel, action_range_pixel, sensor_type, name=None, empty_thres=10):
@@ -25,6 +26,7 @@ class Bin():
         self.sensor_type = sensor_type
         # self.empty_thres = 0.
         self.blurrer = T.GaussianBlur(kernel_size=7, sigma=3)
+        self.obs = None
 
     def reset(self, obs):
         self.empty_img = self.GetActionWiseObs(obs, pre_process=False)
@@ -489,6 +491,9 @@ class DualBinFrontRear(Env):
         assert self.srd is not None
         return self.srd
 
+    def ObsThread(self):
+        self.obs = self.getObs(None)
+
     def step(self, action):
         '''
         In this env, the agent only control pick action.
@@ -513,7 +518,17 @@ class DualBinFrontRear(Env):
         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
         self.old_rgbd_img = self.rgbd_img
         # Observation
-        cam_obs, _ = self.getObs(None)
+        obs_thread = threading.Thread(target=self.ObsThread)
+        obs_thread.start()
+        rospy.sleep(0.3)
+
+        # move
+        x, y, z, r = self.move_action
+        rx, ry, rz = r
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+
+        obs_thread.join()
+        cam_obs, _ = self.obs
         if self.bins[self.picking_bin_id].IsEmpty(cam_obs) or self.num_step > self.max_step:  # if the bin is emptyed
             self.num_step = 0
             self.picking_bin_id = (self.picking_bin_id + 1) % 2
@@ -521,24 +536,35 @@ class DualBinFrontRear(Env):
             # place at the center of the bin
             p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
             z = self.release_z + self.workspace[2][0]
-            self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+            # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
+            # rospy.sleep(0.2)
+            rx, ry, rz = r
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
             self.old_rgbd_img = self.rgbd_img
-            rospy.sleep(0.2)
-            cam_obs, _ = self.getObs(None)
+            # rospy.sleep(0.2)
+
+            # Observation
+            obs_thread = threading.Thread(target=self.ObsThread)
+            obs_thread.start()
+            rospy.sleep(0.3)
+
+            # move
+            x, y, z, r = self.move_action
+            rx, ry, rz = r
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+
+            obs_thread.join()
+            cam_obs, _ = self.obs
         else:
             done = False
         obs = self.bins[self.picking_bin_id].GetObs(cam_obs).reshape(1, -1, self.bin_size_pixel, self.bin_size_pixel)
 
-        # move
-        x, y, z, r = self.move_action
-        rx, ry, rz = r
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
 
         return torch.tensor([0], dtype=torch.float32).view(1),\
                torch.zeros((1, 1, self.in_hand_size, self.in_hand_size)).to(torch.float32),\
                torch.tensor(obs.clone().detach(), dtype=torch.float32).to(torch.float32),\
-               torch.tensor(reward.clone().detach(), dtype=torch.float32).view(1),\
-               torch.tensor(done.clone().detach(), dtype=torch.float32).view(1)
+               torch.tensor(reward, dtype=torch.float32).view(1),\
+               torch.tensor(done, dtype=torch.float32).view(1)
 
     def getStepLeft(self):
         return torch.tensor(100).view(1)
