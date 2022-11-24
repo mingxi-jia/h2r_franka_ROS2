@@ -1,5 +1,5 @@
 import logging
-
+import time
 import numpy as np
 from src.envs.env import *
 from scipy.ndimage.interpolation import rotate
@@ -159,8 +159,12 @@ class DualBinFrontRear(Env):
         return obs, in_hand
 
     def checkWS(self):
-        obs, in_hand = env.getObs(None)
-        plt.imshow(obs[0, -1])
+        obs, in_hand = self.getObs(None)
+        # plt.imshow(obs[0, -1])
+        img = obs[0, :-1].permute(1, 2, 0).clone()
+        img += 0.5
+        img *= 255
+        plt.imshow(img.int())
         plt.colorbar()
         plt.plot((128, 128), (0, 255), color='r', linewidth=1)
         plt.plot((0, 255), (145, 145), color='r', linewidth=1)
@@ -181,7 +185,7 @@ class DualBinFrontRear(Env):
         plt.scatter(160, 143, color='r', linewidths=1, marker='+')
         plt.scatter(240, 63, color='r', linewidths=1, marker='+')
         plt.scatter(240, 143, color='r', linewidths=1, marker='+')
-        plt.scatter(128, 128, color='g', linewidths=2, marker='+')  # center of the workspace
+        plt.scatter(128, 128, color='g', linewidths=1, marker='+')  # center of the workspace
         # plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, -1].clamp(-0.02, 0.015))
@@ -518,6 +522,7 @@ class DualBinFrontRear(Env):
         self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
         self.old_rgbd_img = self.rgbd_img
         # Observation
+        rospy.sleep(0.1)
         obs_thread = threading.Thread(target=self.ObsThread)
         obs_thread.start()
         rospy.sleep(0.3)
@@ -580,4 +585,8 @@ if __name__ == '__main__':
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
-        env.reset()
+
+        # start_time = time.time()
+        # env.getObs(None)
+        # print('get obs: ', time.time() - start_time)
+        # env.reset()

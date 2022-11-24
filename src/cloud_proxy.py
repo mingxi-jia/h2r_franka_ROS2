@@ -36,10 +36,9 @@ class CloudProxy:
         """
         self.has_cloud = False
         while not self.has_cloud:
-            rospy.sleep(0.01)
+            rospy.sleep(0.005)
         cloudTime = self.msg.header.stamp
         cloudFrame = self.msg.header.frame_id
-        # cloud = np.array(list(point_cloud2.read_points(self.msg)))[:, 0:3]
         pc = ros_numpy.numpify(self.msg)
         pc = ros_numpy.point_cloud2.split_rgb_field(pc)
         height = pc.shape[0]
@@ -58,8 +57,10 @@ class CloudProxy:
 
     def getProjectImg(self, target_size, img_size, return_rgb=False, return_mask=False):
         clouds = []
-        for i in range(3):
+        # start_time = time.time()
+        for i in range(2):
             clouds.append(self.getCloud())
+        # print('get getCloud: ', time.time() - start_time)
         view_matrix = np.eye(4)
         view_matrix[:3, 3] = [-0.007, -0.013, 0]
         # augment = np.ones((1, cloud.shape[0]))
@@ -72,12 +73,15 @@ class CloudProxy:
         ])
         tran_world_pix = np.matmul(projection_matrix, view_matrix)
         depths, rgbs, masks = [], [], []
+        # start_time = time.time()
+        rotation = 89.2
         for cloud in clouds:
             pts = cloud.T
             pts[:2] = np.matmul(tran_world_pix[:2, :2], pts[:2])
             # pts[1] = -pts[1]
             pts[0] = (pts[0] + 1) * img_size / 2 - 2
-            pts[1] = (pts[1] + 1) * img_size / 2 + 20
+            # pts[1] = (pts[1] + 1) * img_size / 2 + 20
+            pts[1] = (pts[1] + 1) * img_size / 2 + 18
 
             pts[0] = np.round_(pts[0])
             pts[1] = np.round_(pts[1])
@@ -105,7 +109,7 @@ class CloudProxy:
             # depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
             # imputer = SimpleImputer(missing_values=np.nan, strategy='median')
             # depth = imputer.fit_transform(depth)
-            depth = rotate(depth, 90)
+            depth = rotate(depth, rotation)
             # depth[mask] = 0
             assert depth.shape == (img_size, img_size)
             depths.append(depth)
@@ -113,12 +117,14 @@ class CloudProxy:
             if return_rgb:
                 rgb = pts[3:][:, ind][:, cumsum]
                 rgb = rgb.T.reshape(img_size, img_size, 3)
-                rgb = rotate(rgb, 90)
+                rgb = rotate(rgb, rotation)
                 rgbs.append(rgb)
 
         depth = np.nanmedian(depths, axis=0)
         mask = np.isnan(depth)
         depth = inpaint.inpaint_biharmonic(depth, mask)
+
+        # print('return obs: ', time.time() - start_time)
         if return_rgb:
             rgb = np.nanmedian(rgbs, axis=0)
             rgb = inpaint.inpaint_biharmonic(rgb, mask, channel_axis=-1)
