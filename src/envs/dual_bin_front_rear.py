@@ -62,7 +62,7 @@ class Bin():
                 bin_obs[:, :3] = 0
             elif self.sensor_type == 'nrgb0':
                 bin_obs[:, :3] /= 10
-                bin_obs[:, :-1] = 0
+                bin_obs[:, -1] = 0
             elif self.sensor_type == 'd':
                 bin_obs = bin_obs[:, -1]
             else:
@@ -160,32 +160,37 @@ class DualBinFrontRear(Env):
 
     def checkWS(self):
         obs, in_hand = self.getObs(None)
-        # plt.imshow(obs[0, -1])
-        img = obs[0, :-1].permute(1, 2, 0).clone()
-        img += 0.5
-        img *= 255
-        plt.imshow(img.int())
-        plt.colorbar()
-        plt.plot((128, 128), (0, 255), color='r', linewidth=1)
-        plt.plot((0, 255), (145, 145), color='r', linewidth=1)
-        plt.scatter(128, 128, color='w', linewidths=2, marker='+')
-        plt.scatter(self.left_bin.center_rc[1], self.left_bin.center_rc[0], color='r', linewidths=1, marker='+')
-        plt.scatter(self.right_bin.center_rc[1], self.right_bin.center_rc[0], color='r', linewidths=1, marker='+')
-        left_bin_vertexs_rc = self.left_bin.GetVertexRC()
-        right_bin_vertexs_rc = self.right_bin.GetVertexRC()
-        for vertex_rc in left_bin_vertexs_rc:
-            plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
-        for vertex_rc in right_bin_vertexs_rc:
-            plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
-        plt.scatter(16, 63, color='r', linewidths=1, marker='+')
-        plt.scatter(16, 143, color='r', linewidths=1, marker='+')
-        plt.scatter(96, 63, color='r', linewidths=1, marker='+')
-        plt.scatter(96, 143, color='r', linewidths=1, marker='+')
-        plt.scatter(160, 63, color='r', linewidths=1, marker='+')
-        plt.scatter(160, 143, color='r', linewidths=1, marker='+')
-        plt.scatter(240, 63, color='r', linewidths=1, marker='+')
-        plt.scatter(240, 143, color='r', linewidths=1, marker='+')
-        plt.scatter(128, 128, color='g', linewidths=1, marker='+')  # center of the workspace
+        d_img = obs[0, -1]
+        rgb_img = obs[0, :-1].permute(1, 2, 0).clone()
+        rgb_img += 0.5
+        rgb_img *= 255
+        rgb_img = rgb_img.int()
+        for img in [d_img, rgb_img]:
+            plt.figure()
+            plt.imshow(img)
+            plt.colorbar()
+            plt.plot((128, 128), (0, 255), color='r', linewidth=1)
+            plt.plot((0, 255), (145, 145), color='r', linewidth=1)
+            plt.plot((0, 255), (150, 150), color='r', linewidth=1, alpha=0.8)
+            plt.scatter(128, 128, color='w', linewidths=2, marker='+')
+            plt.scatter(self.left_bin.center_rc[1], self.left_bin.center_rc[0], color='r', linewidths=1, marker='+')
+            plt.scatter(self.right_bin.center_rc[1], self.right_bin.center_rc[0], color='r', linewidths=1, marker='+')
+            left_bin_vertexs_rc = self.left_bin.GetVertexRC()
+            right_bin_vertexs_rc = self.right_bin.GetVertexRC()
+            for vertex_rc in left_bin_vertexs_rc:
+                plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
+            for vertex_rc in right_bin_vertexs_rc:
+                plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
+            plt.scatter(16, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(16, 143, color='r', linewidths=1, marker='+')
+            plt.scatter(96, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(96, 143, color='r', linewidths=1, marker='+')
+            plt.scatter(160, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(160, 143, color='r', linewidths=1, marker='+')
+            plt.scatter(240, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(240, 143, color='r', linewidths=1, marker='+')
+            plt.scatter(128, 128, color='g', linewidths=1, marker='+')  # center of the workspace
+
         # plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
         obs0 = axs[0].imshow(self.left_bin.GetObs(obs, pre_process=True)[0, -1].clamp(-0.02, 0.015))
@@ -211,9 +216,9 @@ class DualBinFrontRear(Env):
 
     def pixel2ws(self, pixel, rc=None):
         if rc == 'r':  # row
-            return (pixel - self.cam_size[1] / 2) * self.pixel_size + self.ws_center[0]
+            return (pixel - (self.cam_size[1] - 1) / 2) * self.pixel_size + self.ws_center[0]
         elif rc == 'c':  # colonm
-            return (pixel - self.cam_size[0] / 2) * self.pixel_size + self.ws_center[1]
+            return (pixel - (self.cam_size[0] - 1) / 2) * self.pixel_size + self.ws_center[1]
         elif len(pixel) == 2:  # rc
             return [self.pixel2ws(pixel[0], 'r'), self.pixel2ws(pixel[1], 'c')]
         raise NotImplementedError
@@ -514,7 +519,7 @@ class DualBinFrontRear(Env):
         # place_action =
         # rx, ry, rz = place_action[-1]
         rx, ry, rz = r_action
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         reward = self.ur5.checkGripperState()
         # place
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
@@ -530,7 +535,7 @@ class DualBinFrontRear(Env):
         # move
         x, y, z, r = self.move_action
         rx, ry, rz = r
-        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+        self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
 
         obs_thread.join()
         cam_obs, _ = self.obs
@@ -544,7 +549,7 @@ class DualBinFrontRear(Env):
             # self.ur5.only_place_fast(x, y, z, r, no_action_when_empty=False, move2_prepose=False)
             # rospy.sleep(0.2)
             rx, ry, rz = r
-            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
             self.old_rgbd_img = self.rgbd_img
             # rospy.sleep(0.2)
 
@@ -556,7 +561,7 @@ class DualBinFrontRear(Env):
             # move
             x, y, z, r = self.move_action
             rx, ry, rz = r
-            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=1)
+            self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
 
             obs_thread.join()
             cam_obs, _ = self.obs
