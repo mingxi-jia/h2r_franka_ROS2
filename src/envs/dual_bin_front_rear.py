@@ -118,8 +118,8 @@ class DualBinFrontRear(Env):
         self.pixel_size = ws_x / cam_size[0]
         self.cam_size = cam_size
         self.release_z = 0.2
-        left_bin_center_rc = [103, 56]  # rc: row, colonm
-        right_bin_center_rc = [103, 200]
+        left_bin_center_rc = [102.5, 55.5]  # rc: row, colonm
+        right_bin_center_rc = [102.5, 199.5]
         left_bin_center_ws = self.pixel2ws(left_bin_center_rc)
         right_bin_center_ws = self.pixel2ws(right_bin_center_rc)
         self.action_range = 0.25  # !!! important, action safety guarantee
@@ -169,10 +169,10 @@ class DualBinFrontRear(Env):
             plt.figure()
             plt.imshow(img)
             plt.colorbar()
-            plt.plot((128, 128), (0, 255), color='r', linewidth=1)
-            plt.plot((0, 255), (145, 145), color='r', linewidth=1)
-            plt.plot((0, 255), (150, 150), color='r', linewidth=1, alpha=0.8)
-            plt.scatter(128, 128, color='w', linewidths=2, marker='+')
+            plt.plot((127.5, 127.5), (0, 255), color='r', linewidth=1)
+            # plt.plot((0, 255), (145, 145), color='r', linewidth=1)
+            # plt.plot((0, 255), (150, 150), color='r', linewidth=1, alpha=0.8)
+            plt.scatter(127.5, 127.5, color='w', linewidths=2, marker='+')
             plt.scatter(self.left_bin.center_rc[1], self.left_bin.center_rc[0], color='r', linewidths=1, marker='+')
             plt.scatter(self.right_bin.center_rc[1], self.right_bin.center_rc[0], color='r', linewidths=1, marker='+')
             left_bin_vertexs_rc = self.left_bin.GetVertexRC()
@@ -182,14 +182,14 @@ class DualBinFrontRear(Env):
             for vertex_rc in right_bin_vertexs_rc:
                 plt.scatter(vertex_rc[1], vertex_rc[0], color='y', linewidths=1, marker='+')
             plt.scatter(16, 63, color='r', linewidths=1, marker='+')
-            plt.scatter(16, 143, color='r', linewidths=1, marker='+')
-            plt.scatter(96, 63, color='r', linewidths=1, marker='+')
-            plt.scatter(96, 143, color='r', linewidths=1, marker='+')
+            plt.scatter(16, 142, color='r', linewidths=1, marker='+')
+            plt.scatter(95, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(95, 142, color='r', linewidths=1, marker='+')
             plt.scatter(160, 63, color='r', linewidths=1, marker='+')
-            plt.scatter(160, 143, color='r', linewidths=1, marker='+')
-            plt.scatter(240, 63, color='r', linewidths=1, marker='+')
-            plt.scatter(240, 143, color='r', linewidths=1, marker='+')
-            plt.scatter(128, 128, color='g', linewidths=1, marker='+')  # center of the workspace
+            plt.scatter(160, 142, color='r', linewidths=1, marker='+')
+            plt.scatter(239, 63, color='r', linewidths=1, marker='+')
+            plt.scatter(239, 142, color='r', linewidths=1, marker='+')
+            plt.scatter(127.5, 127.5, color='g', linewidths=1, marker='+')  # center of the workspace
 
         # plt.colorbar()
         fig, axs = plt.subplots(nrows=1, ncols=2)
