@@ -40,21 +40,21 @@ class Bin():
         '''
         get the vertexs of the bin in [row, colonm]
         '''
-        return [[int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[1] - self.size_pixel / 2)],
-                [int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)],
-                [int(self.center_rc[0] + self.size_pixel / 2), int(self.center_rc[1] - self.size_pixel / 2)],
-                [int(self.center_rc[0] + self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)]]
+        return [[int(self.center_rc[0] - (self.size_pixel - 1) / 2), int(self.center_rc[1] - (self.size_pixel - 1) / 2)],
+                [int(self.center_rc[0] - (self.size_pixel - 1) / 2), int(self.center_rc[1] + (self.size_pixel - 1) / 2)],
+                [int(self.center_rc[0] + (self.size_pixel - 1) / 2), int(self.center_rc[1] - (self.size_pixel - 1) / 2)],
+                [int(self.center_rc[0] + (self.size_pixel - 1) / 2), int(self.center_rc[1] + (self.size_pixel - 1) / 2)]]
 
     def GetRangeRC(self):
         '''
         get the vertexs of the bin in [row, colonm]
         '''
-        return [int(self.center_rc[0] - self.size_pixel / 2), int(self.center_rc[0] + self.size_pixel / 2),
-                int(self.center_rc[1] - self.size_pixel / 2), int(self.center_rc[1] + self.size_pixel / 2)]
+        return [int(self.center_rc[0] - (self.size_pixel - 1) / 2), int(self.center_rc[0] + (self.size_pixel - 1) / 2),
+                int(self.center_rc[1] - (self.size_pixel - 1) / 2), int(self.center_rc[1] + (self.size_pixel - 1) / 2)]
 
     def GetObs(self, obs, pre_process=True):
         pixel_range = self.GetRangeRC()
-        bin_obs = obs[:, :, pixel_range[0]:pixel_range[1], pixel_range[2]:pixel_range[3]]
+        bin_obs = obs[:, :, pixel_range[0]:pixel_range[1]+1, pixel_range[2]:pixel_range[3]+1]
         if pre_process:
             if self.sensor_type == 'nrgbd':
                 bin_obs[:, :3] /= 10
