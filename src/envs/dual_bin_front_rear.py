@@ -105,7 +105,7 @@ class DualBinFrontRear(Env):
     def __init__(self, ws_center=(-0.4448, -0.17, -0.145), ws_x=0.8, ws_y=0.8, cam_resolution=0.00155, sensor_type='rgbd',
                  cam_size=(256, 256), action_sequence='xyrp', in_hand_mode='proj', pick_offset=0.05, place_offset=0.05,
                  in_hand_size=24, obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, bin_size=0, bin_size_pixel=112,
-                 z_heuristic=None):
+                 z_heuristic=None, collision_penalty=1):
         super().__init__(ws_center=ws_center, ws_x=ws_x, ws_y=ws_y, cam_resolution=cam_resolution, obs_size=cam_size,
                          action_sequence=action_sequence, in_hand_mode=in_hand_mode, pick_offset=pick_offset,
                          place_offset=place_offset, in_hand_size=in_hand_size, obs_source=obs_source,
@@ -127,6 +127,7 @@ class DualBinFrontRear(Env):
         # self.bin_size
         self.bin_size_pixel = bin_size_pixel
         self.in_hand_size = 32
+        self.collision_penalty = collision_penalty
         empty_thres = 50
         self.left_bin = Bin(left_bin_center_rc, left_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
                             sensor_type=sensor_type, name='left_bin', empty_thres=empty_thres)
@@ -511,6 +512,7 @@ class DualBinFrontRear(Env):
         assert self.picking_bin_id is not None
         # pick
         p, x, y, z, r = self._decodeAction(action, self.picking_bin_id)
+        self.ur5.collided = False
         self.ur5.only_pick_fast(x, y, z, r, check_gripper_close_when_pick=True)
         self.num_step += 1
         r_action = r
@@ -521,6 +523,8 @@ class DualBinFrontRear(Env):
         rx, ry, rz = r_action
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         reward = self.ur5.checkGripperState()
+        reward *= self.collision_penalty
+
         # place
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
         z = self.release_z + self.workspace[2][0]

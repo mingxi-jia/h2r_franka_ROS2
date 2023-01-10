@@ -65,9 +65,10 @@ class CloudProxy:
         view_matrix[:3, 3] = [-0.007, -0.013, 0]
         # augment = np.ones((1, cloud.shape[0]))
         # pts = np.concatenate((cloud.T, augment), axis=0)
+        scale = 24.3/25
         projection_matrix = np.array([
-            [1 / (target_size / 2), 0, 0, 0],
-            [0, 1 / (target_size / 2), 0, 0],
+            [scale / (target_size / 2), 0, 0, 0],
+            [0, scale / (target_size / 2), 0, 0],
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
@@ -79,7 +80,8 @@ class CloudProxy:
             pts = cloud.T
             pts[:2] = np.matmul(tran_world_pix[:2, :2], pts[:2])
             # pts[1] = -pts[1]
-            pts[0] = (pts[0] + 1) * img_size / 2 - 2
+            # pts[0] = (pts[0] + 1) * img_size / 2 - 2
+            pts[0] = (pts[0] + 1) * img_size / 2
             # pts[1] = (pts[1] + 1) * img_size / 2 + 20
             pts[1] = (pts[1] + 1) * img_size / 2 + 18
 

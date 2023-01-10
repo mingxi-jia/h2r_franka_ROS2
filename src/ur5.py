@@ -46,7 +46,7 @@ class UR5:
         self.safety_mode = None
         self.safety_mode_sub = rospy.Subscriber('/ur_hardware_interface/safety_mode', SafetyMode, self.safetyModeCallback)
         self.release_protective_stop = rospy.ServiceProxy('/ur_hardware_interface/dashboard/unlock_protective_stop', Trigger)
-
+        self.collided = False
         self.collision_flag = False
 
     def jointsCallback(self, msg):
@@ -147,14 +147,14 @@ class UR5:
                     rospy.sleep(0.1)
 
                     if self.is_position_arrived(x, y, z) or not cd.is_running:
-                        self.collision_flag = not cd.is_running
+                        self.collision_flag = self.collided = not cd.is_running
                         # print('arrive', self.is_position_arrived(x, y, z))
                         # print(cd.is_running)
                         break
 
             if self.safety_mode == 3:
                 self.release_protective_stop()
-                self.collision_flag = True
+                self.collision_flag = self.collided = True
 
         if self.collision_flag and with_collision_detection:
             # # If either collision or protecitve stop happened, lift z for 1 cm
