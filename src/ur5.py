@@ -14,8 +14,12 @@ from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
-        self.collision_detection = CollisionDetector(max_z=40)
-        self.grasp_collision_detection = CollisionDetector(max_z=80)
+        self.collision_stop = CollisionDetector(max_z=40) # zxp collision during reaching grap pose,
+                                                          # when collision happens, freeze the robot
+        self.collision_handling = CollisionDetector(max_z=145) # zxp collision when running robot,
+                                                               # when collision happens, keep moving the robot
+        self.grasp_collision_detection = CollisionDetector(max_z=80) # zxp collision when colsing gripper
+                                                                     # when collision happens, lift up the robot
         self.gripper = Gripper(True)
         self.gripper.reset()
         self.gripper.activate()
@@ -128,14 +132,23 @@ class UR5:
             self.waitUntilSlowMoving()
 
 
-    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.1, with_collision_detection=False):
-        a_with_cd = 0.3
-        v_with_cd = 0.2
+    def moveToPT(self, x, y, z, rx, ry, rz, t=5, t_wait_reducing=-0.1,
+                 with_collision_stop=False, with_stop_handling=True):
         self.collision_flag = False
         rx, ry, rz = rpyToRotVector(rx, ry, rz)
-        if with_collision_detection:
+        collision_detector = None
+        if with_collision_stop:
+            a_with_cd = 0.3
+            v_with_cd = 0.2
+            collision_detector = self.collision_stop
+            with_stop_handling = False
+        elif with_stop_handling:
+            a_with_cd = 1 # same as ur5 'normal mode'
+            v_with_cd = 1.5 # same as ur5 'normal mode'
+            collision_detector = self.collision_handling
+        if collision_detector is not None:
             rospy.sleep(0.15)
-            with self.collision_detection as cd:
+            with collision_detector as cd:
                 pose = [x, y, z, rx, ry, rz]
                 is_sent = False
                 while True:
@@ -144,19 +157,29 @@ class UR5:
                         self.pub.publish(s)
                         is_sent = True
                         # print('with z protection ', z)
-                    rospy.sleep(0.1)
+                    rospy.sleep(0.05)
 
-                    if self.is_position_arrived(x, y, z) or not cd.is_running:
-                        self.collision_flag = self.collided = not cd.is_running
-                        # print('arrive', self.is_position_arrived(x, y, z))
-                        # print(cd.is_running)
-                        break
+                    if with_collision_stop:
+                        if self.is_position_arrived(x, y, z) or not cd.is_running:
+                            self.collision_flag = self.collided = not cd.is_running
+                            if self.safety_mode == 3:
+                                self.release_protective_stop()
+                                self.collision_flag = self.collided = True
+                            break
 
-            if self.safety_mode == 3:
-                self.release_protective_stop()
-                self.collision_flag = self.collided = True
+                    elif with_stop_handling:
+                        if self.is_position_arrived(x, y, z):
+                            break
+                        if not cd.is_running:
+                            self.collision_flag = self.collided = not cd.is_running
+                            if self.safety_mode == 3:
+                                self.release_protective_stop()
+                                self.collision_flag = self.collided = True
+                            self.pub.publish(s)
+                            break
 
-        if self.collision_flag and with_collision_detection:
+
+        if self.collision_flag and with_collision_stop:
             # # If either collision or protecitve stop happened, lift z for 1 cm
             z = self.tool_position[2] + 0.01
             pose = [x, y, z, rx, ry, rz]
@@ -168,7 +191,7 @@ class UR5:
             rospy.sleep(0.5)
             self.collision_flag = False
 
-        if not with_collision_detection:
+        if not with_collision_stop:
             pose = [x, y, z, rx, ry, rz]
             s = 'movel(p{}, t={})'.format(pose, t)
             # s = 'movel(p{}, v=0.25)'.format(pose)
@@ -231,9 +254,9 @@ class UR5:
         pre_pos[2] += self.pick_offset
 
         self.moveToPT(*pre_pos, rx, ry, rz, t=1)
-        self.moveToPT(x, y, z, rx, ry, rz, with_collision_detection=True)
+        self.moveToPT(x, y, z, rx, ry, rz, with_collision_stop=True)
         with self.grasp_collision_detection as cd:
-            self.gripper.closeGripper()
+            self.gripper.closeGripper(force=10)
             # print('closing gripper')
             time_for_close = 8
             while True:
@@ -256,7 +279,7 @@ class UR5:
                 if self.collision_flag:
                     recovery_z = self.tool_position[2] + 0.015
                     # self.gripper.openGripper()
-                    self.moveToPT(x, y, recovery_z, rx, ry, rz, t=0.2)
+                    self.moveToPT(x, y, recovery_z, rx, ry, rz, t=0.2, with_collision_stop=False)
                     self.collision_flag = False
                     cd.is_running = True
                     time_for_close = 3
@@ -335,7 +358,7 @@ if __name__ == '__main__':
         # ur5.moveToPT(-0.451975, 0.273, -0.02, 0, 0, 0.7853981852531433, t=0.2, t_wait_reducing=0.05)
         print('prepose')
         ur5.only_pick_fast(-0.451975, 0.273, -0.075, (0, 0, 0.7853981852531433), check_gripper_close_when_pick=True)
-        ur5.moveToPT(-0.451975, 0.273, -0.075, 0, 0, 0.7853981852531433, with_collision_detection=True)
+        ur5.moveToPT(-0.451975, 0.273, -0.075, 0, 0, 0.7853981852531433, with_collision_stop=True)
     pick_place_offset = 0.1
     pick_place_height = 0.25
 

@@ -25,7 +25,8 @@ class Bin():
         self.last_img = None
         self.sensor_type = sensor_type
         # self.empty_thres = 0.
-        self.blurrer = T.GaussianBlur(kernel_size=7, sigma=3)
+        # self.blurrer = T.GaussianBlur(kernel_size=7, sigma=3)
+        self.blurrer = T.GaussianBlur(kernel_size=11, sigma=5)
         self.obs = None
 
     def reset(self, obs):
@@ -161,7 +162,7 @@ class DualBinFrontRear(Env):
 
     def checkWS(self):
         obs, in_hand = self.getObs(None)
-        d_img = obs[0, -1]
+        d_img = obs[0, -1].clamp(-0.015, 0.015)
         rgb_img = obs[0, :-1].permute(1, 2, 0).clone()
         rgb_img += 0.5
         rgb_img *= 255
@@ -523,7 +524,8 @@ class DualBinFrontRear(Env):
         rx, ry, rz = r_action
         self.ur5.moveToPT(x, y, z, rx, ry, rz, t=0.8)
         reward = self.ur5.checkGripperState()
-        reward *= self.collision_penalty
+        if self.ur5.collided:
+            reward *= self.collision_penalty
 
         # place
         p, x, y, z, r = self._decodeAction(self.place_action(), (self.picking_bin_id + 1) % 2)
@@ -590,7 +592,7 @@ class DualBinFrontRear(Env):
 if __name__ == '__main__':
     import rospy
     rospy.init_node('image_proxy')
-    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, ws_center=(-0.4448, -0.17, -0.147), cam_size=(256, 256),
+    env = DualBinFrontRear(ws_x=0.8, ws_y=0.8, ws_center=(-0.37, 0.0133, -0.107), cam_size=(256, 256),
                            obs_source='reconstruct', bin_size=0.4, bin_size_pixel=112)
     while True:
         env.checkWS()
