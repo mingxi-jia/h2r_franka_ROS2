@@ -143,8 +143,8 @@ class UR5:
             collision_detector = self.collision_stop
             with_stop_handling = False
         elif with_stop_handling:
-            a_with_cd = 1 # same as ur5 'normal mode'
-            v_with_cd = 1.5 # same as ur5 'normal mode'
+            a_with_cd = 1.4
+            v_with_cd = 1.4 # same as ur5 'normal mode'
             collision_detector = self.collision_handling
         if collision_detector is not None:
             rospy.sleep(0.15)
@@ -157,10 +157,10 @@ class UR5:
                         self.pub.publish(s)
                         is_sent = True
                         # print('with z protection ', z)
-                    rospy.sleep(0.05)
+                    rospy.sleep(0.5)
 
                     if with_collision_stop:
-                        if self.is_position_arrived(x, y, z) or not cd.is_running:
+                        if self.is_position_arrived(x, y, z) or not cd.is_running or self.safety_mode == 3:
                             self.collision_flag = self.collided = not cd.is_running
                             if self.safety_mode == 3:
                                 self.release_protective_stop()
@@ -168,15 +168,17 @@ class UR5:
                             break
 
                     elif with_stop_handling:
-                        if self.is_position_arrived(x, y, z):
+                        if self.is_position_arrived(x, y, z, threshold=3e-2):
                             break
-                        if not cd.is_running:
-                            self.collision_flag = self.collided = not cd.is_running
-                            if self.safety_mode == 3:
+                        if not cd.is_running or self.safety_mode == 3:
+                            while self.safety_mode == 3:
+                                rospy.sleep(3)
                                 self.release_protective_stop()
-                                self.collision_flag = self.collided = True
+                                # self.collision_flag = self.collided = True
+                            cd.is_running = True
                             self.pub.publish(s)
-                            break
+                            rospy.sleep(1)
+                            self.pub.publish(s)
 
 
         if self.collision_flag and with_collision_stop:
@@ -191,14 +193,14 @@ class UR5:
             rospy.sleep(0.5)
             self.collision_flag = False
 
-        if not with_collision_stop:
-            pose = [x, y, z, rx, ry, rz]
-            s = 'movel(p{}, t={})'.format(pose, t)
-            # s = 'movel(p{}, v=0.25)'.format(pose)
-            # rospy.sleep(0.1)
-            self.pub.publish(s)
-            rospy.sleep(t - t_wait_reducing)
-            # self.waitUntilSlowMoving()
+        # if not with_collision_stop:
+        #     pose = [x, y, z, rx, ry, rz]
+        #     s = 'movel(p{}, t={})'.format(pose, t)
+        #     # s = 'movel(p{}, v=0.25)'.format(pose)
+        #     # rospy.sleep(0.1)
+        #     self.pub.publish(s)
+        #     rospy.sleep(t - t_wait_reducing)
+        #     # self.waitUntilSlowMoving()
 
 
     def moveToHome(self):
