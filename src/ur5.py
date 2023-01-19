@@ -14,7 +14,9 @@ from src.collision_detector import CollisionDetector
 
 class UR5:
     def __init__(self, pick_offset=0.1, place_offset=0.1, place_open_pos=0):
-        self.collision_stop = CollisionDetector(max_z=40) # zxp collision during reaching grap pose,
+        # self.collision_stop = CollisionDetector(max_z=40) # zxp collision during reaching grap pose,
+        #                                                   # when collision happens, freeze the robot
+        self.collision_stop = CollisionDetector(max_z=80) # zxp collision during reaching grap pose,
                                                           # when collision happens, freeze the robot
         self.collision_handling = CollisionDetector(max_z=145) # zxp collision when running robot,
                                                                # when collision happens, keep moving the robot

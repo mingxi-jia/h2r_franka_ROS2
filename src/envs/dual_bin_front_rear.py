@@ -134,7 +134,7 @@ class DualBinFrontRear(Env):
                             sensor_type=sensor_type, name='left_bin', empty_thres=empty_thres)
         self.right_bin = Bin(right_bin_center_rc, right_bin_center_ws, self.bin_size_pixel, self.action_range_pixel,
                              sensor_type=sensor_type, name='right_bin', empty_thres=empty_thres)
-        self.move_action = ((left_bin_center_ws[0] + right_bin_center_ws[0]) / 2,
+        self.move_action = ((left_bin_center_ws[0] + right_bin_center_ws[0]) / 2 + 0.08,
                             (left_bin_center_ws[1] + right_bin_center_ws[1]) / 2,
                             0.28 + self.workspace[2][0], (0, 0, 0))  # xyzr
         self.bins = [self.left_bin, self.right_bin]
