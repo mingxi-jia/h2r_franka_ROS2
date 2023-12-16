@@ -10,26 +10,26 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 
 sys.path.append('./')
 sys.path.append('..')
-from agents.models_x import *
-from agents.fc.dqn_x_rot_in_hand import DQNXRotInHand
-from agents.fc.policy_x_rot_in_hand import PolicyXRotInHand
-from agents.fc.dqn_x_rot_in_hand_anneal import DQNXRotInHandAnneal
-from agents.fc.dqn_x_rot_in_hand_margin import DQNXRotInHandMargin
-from agents.hierarchy.policy_rot_in_hand import PolicyRotInHand
-from agents.hierarchy.in_hand_agent import DQNRotMaxInHand, DQNRotMulInHand, DQNRotMaxSharedInHand
-from agents.hierarchy.margin_agent import DQNRotMaxInHandMargin, DQNRotMulInHandMargin, DQNRotMaxSharedInHandMargin, DQNPRotMaxSharedInHandMargin
-from agents.hierarchy.rot_z_agent import DQNRotZMaxSharedInHand, DQNRotZMaxSharedInHandMargin, PolicyRotZInHand, PolicyRotZSharedInHand
-from agents.hierarchy.rot_2_agent import DQNRot2MaxSharedInHand, DQNRot2MaxSharedInHandMargin, PolicyRot2InHand, DQNRot2MulInHand, PolicyRot2SharedInHand
-from agents.hierarchy.zrr_agent import DQNZRRMaxSharedInHand, DQNZRRMaxSharedInHandMargin, PolicyZRRInHand, PolicyZRRSharedInHand
-from agents.hierarchy.deictic_agent import DQNRotDeicticMaxSharedInHandMargin, DQNRotDeicticMaxSharedInHand, DQNRotZDeicticMaxSharedInHandMargin, DQNRotZDeicticMaxSharedInHand, DQNRot2DeicticMaxSharedInHand
-from agents.hierarchy.policy_shared_in_hand import PolicySharedInHand
-from agents.hierarchy.policy_3l_rz_rxz import Policy3LMaxSharedRzRxZ
-from agents.hierarchy.dqn_3l_max_shared import DQN3LMaxShared
-from agents.hierarchy.dqn_3l_rz_rxz import DQN3LMaxSharedRzRxZ
-from agents.hierarchy.margin_3l_max_shared import Margin3LMaxShared
-from agents.hierarchy.margin_3l_rz_rxz import Margin3LMaxSharedRzRxZ
-from agents.hierarchy.dqn_3l_6d import DQN3L6DMaxShared
-from agents.hierarchy.dqn_5l import DQN5LMaxShared
+# from agents.models_x import *
+# from agents.fc.dqn_x_rot_in_hand import DQNXRotInHand
+# from agents.fc.policy_x_rot_in_hand import PolicyXRotInHand
+# from agents.fc.dqn_x_rot_in_hand_anneal import DQNXRotInHandAnneal
+# from agents.fc.dqn_x_rot_in_hand_margin import DQNXRotInHandMargin
+# from agents.hierarchy.policy_rot_in_hand import PolicyRotInHand
+# from agents.hierarchy.in_hand_agent import DQNRotMaxInHand, DQNRotMulInHand, DQNRotMaxSharedInHand
+# from agents.hierarchy.margin_agent import DQNRotMaxInHandMargin, DQNRotMulInHandMargin, DQNRotMaxSharedInHandMargin, DQNPRotMaxSharedInHandMargin
+# from agents.hierarchy.rot_z_agent import DQNRotZMaxSharedInHand, DQNRotZMaxSharedInHandMargin, PolicyRotZInHand, PolicyRotZSharedInHand
+# from agents.hierarchy.rot_2_agent import DQNRot2MaxSharedInHand, DQNRot2MaxSharedInHandMargin, PolicyRot2InHand, DQNRot2MulInHand, PolicyRot2SharedInHand
+# from agents.hierarchy.zrr_agent import DQNZRRMaxSharedInHand, DQNZRRMaxSharedInHandMargin, PolicyZRRInHand, PolicyZRRSharedInHand
+# from agents.hierarchy.deictic_agent import DQNRotDeicticMaxSharedInHandMargin, DQNRotDeicticMaxSharedInHand, DQNRotZDeicticMaxSharedInHandMargin, DQNRotZDeicticMaxSharedInHand, DQNRot2DeicticMaxSharedInHand
+# from agents.hierarchy.policy_shared_in_hand import PolicySharedInHand
+# from agents.hierarchy.policy_3l_rz_rxz import Policy3LMaxSharedRzRxZ
+# from agents.hierarchy.dqn_3l_max_shared import DQN3LMaxShared
+# from agents.hierarchy.dqn_3l_rz_rxz import DQN3LMaxSharedRzRxZ
+# from agents.hierarchy.margin_3l_max_shared import Margin3LMaxShared
+# from agents.hierarchy.margin_3l_rz_rxz import Margin3LMaxSharedRzRxZ
+# from agents.hierarchy.dqn_3l_6d import DQN3L6DMaxShared
+# from agents.hierarchy.dqn_5l import DQN5LMaxShared
 
 from src.utils.parameters_x import *
 

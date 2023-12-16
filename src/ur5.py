@@ -26,8 +26,8 @@ class UR5:
         self.gripper.reset()
         self.gripper.activate()
         self.pub = rospy.Publisher('/ur_hardware_interface/script_command', String, queue_size=10)
-        self.home_joint_values = [-0.394566837941305, -2.294720474873678, 2.2986323833465576,
-                                  -1.5763557592975062,-1.5696309248553675, -0.3957274595843714]
+        self.home_joint_values = [-0.81552774, -2.62752468,  2.14683247, -1.09191734, -1.56918794,
+                                    -0.81792957]
         self.bins_center_joint_values = [[-0.36723787, -1.71223528, 1.87438631,
                                           -1.71623451, -1.57518703, 1.21666324]]
 
@@ -40,6 +40,7 @@ class UR5:
         # Tool position subscriber
         self.position_names = ['x', 'y', 'z']
         self.tool_position = np.array([0] * 3)
+        self.tool_quat = np.array([0] * 4)
         self.tool_sub = rospy.Subscriber("/tf", TFMessage, self.tfCallback)
 
         self.pick_offset = pick_offset
@@ -77,6 +78,10 @@ class UR5:
                 self.tool_position = np.array([msg.transforms[i].transform.translation.x,
                                                msg.transforms[i].transform.translation.y,
                                                msg.transforms[i].transform.translation.z])
+                self.tool_quat = np.array([msg.transforms[i].transform.rotation.x,
+                                               msg.transforms[i].transform.rotation.y,
+                                               msg.transforms[i].transform.rotation.z,
+                                               msg.transforms[i].transform.rotation.w])
 
     def safetyModeCallback(self, msg):
         self.safety_mode = msg.mode
@@ -246,6 +251,30 @@ class UR5:
             if self.gripper.hasObj():
                 self.gripper.openGripper()
                 self.holding_state = 0
+
+    def pick_and_throw(self, x, y, z, r):
+        if self.holding_state:
+            return
+        rx, ry, rz = r
+        # rz = np.pi/2 + rz
+        T = transformation.euler_matrix(rx, ry, rz)
+        pre_pos = np.array([x, y, z])
+        # pre_pos += self.pick_offset * T[:3, 2]
+        pre_pos[2] += self.pick_offset
+
+        self.moveToP(*pre_pos, rx, ry, rz)
+        self.moveToP(x, y, z, rx, ry, rz)
+        self.gripper.closeGripper(force=255)
+        rospy.sleep(0.5)
+        place_pose_1 = [-0.37496883, -1.85229093, 1.99809742, -1.71823579, -1.56919986,
+                        -0.37594825]
+        place_pose_2 = [0.79398787, -1.03516657, 1.43296528, -1.96834976, -1.57040912,
+                        0.79418302]
+        self.moveToJ(place_pose_1)
+        self.waitUntilNotMoving()
+        self.moveToJ(place_pose_2)
+        self.gripper.openGripper()
+        rospy.sleep(0.5)
 
     def only_pick_fast(self, x, y, z, r, check_gripper_close_when_pick=True):
         if self.holding_state:

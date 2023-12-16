@@ -1,5 +1,5 @@
 from src.ur5 import UR5
-from src.img_proxy import ImgProxy
+from src.img_proxy import ImgProxy, DepthProxy
 from src.cloud_proxy import CloudProxy
 import skimage
 import scipy
@@ -31,6 +31,7 @@ class Env:
 
         self.ur5 = UR5(pick_offset, place_offset, place_open_pos)
         self.img_proxy = ImgProxy()
+        self.depth_proxy = DepthProxy()
         self.cloud_proxy = CloudProxy()
         self.old_rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
         self.rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
@@ -228,6 +229,17 @@ class Env:
         # obs = obs.reshape(1, 1, obs.shape[0], obs.shape[1])
         return obs
 
+    def getHeightmapRaw(self):
+        # get img from camera
+        # rgb = self.img_proxy.getTableImage()
+        # depth = self.depth_proxy.getTableImage()
+        rgb = self.img_proxy.getObsImage()
+        depth = self.depth_proxy.getObsImage()
+        depth_shape = depth.shape
+        rgbd = np.concatenate((rgb, depth.reshape(depth_shape[0], depth_shape[1], 1)), axis=2)
+        return rgbd
+
+
     def getEmptyInHand(self):
         if self.in_hand_mode.find('proj') > -1:
             return np.zeros((3, self.in_hand_size, self.in_hand_size))
@@ -251,7 +263,7 @@ class Env:
         in_hand_img = np.zeros((1, self.rgbd_img.shape[1], self.in_hand_size, self.in_hand_size))
         # rgbd_img = self.rgbd_img.reshape(1, -1, self.rgbd_img.shape[0], self.rgbd_img.shape[1])
 
-        return torch.tensor(self.rgbd_img).to(torch.float32), torch.tensor(in_hand_img).to(torch.float32)
+        return torch.tensor(self.rgbd_img).to(torch.float32)
 
     def step(self, action):
         p, x, y, z, r = self._decodeAction(action)

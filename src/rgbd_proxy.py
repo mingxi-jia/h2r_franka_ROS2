@@ -138,6 +138,7 @@ def main():
         plt.imshow(rgb.transpose(1, 2, 0).astype(int))
         # plt.imshow(rgb.astype(int))
         plt.show()
+        print(1)
 
 
 if __name__ == '__main__':  #ToDo

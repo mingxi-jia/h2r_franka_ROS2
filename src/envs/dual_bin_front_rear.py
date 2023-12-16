@@ -505,6 +505,16 @@ class DualBinFrontRear(Env):
     def ObsThread(self):
         self.obs = self.getObs(None)
 
+    def test_get_obs(self):
+        t_start = time.time()
+        obs_thread = threading.Thread(target=self.ObsThread)
+        obs_thread.start()
+        obs_thread.join()
+        cam_obs, _ = self.obs
+        obs = self.bins[0].GetObs(cam_obs).reshape(1, -1, self.bin_size_pixel, self.bin_size_pixel)
+        t = time.time() - t_start
+        print(t)
+
     def step(self, action):
         '''
         In this env, the agent only control pick action.
