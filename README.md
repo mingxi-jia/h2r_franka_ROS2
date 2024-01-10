@@ -25,6 +25,7 @@
 3. Start depth sensor driver.
     ```
     roslaunch openni2_launch openni2.launch
+   roslaunch azure_kinect_ros_driver kinect_rgbd.launch
     ```
 1. Example for openni2 launch file
    ```

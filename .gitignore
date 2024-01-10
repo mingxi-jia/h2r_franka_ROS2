@@ -1,3 +1,14 @@
 /.idea/*
 /.ideaa/
 /.idea
+
+/LEPP
+/src/*.npy
+/src/data
+/src/demo_rss
+/src/simulator
+/src/checkpoints
+/src/__pycache__
+/src/envs/__pycache__
+/src/utils/__pycache__
+/venv
