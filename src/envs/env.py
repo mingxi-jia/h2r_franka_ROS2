@@ -1,6 +1,6 @@
 from src.ur5 import UR5
 from src.img_proxy import ImgProxy, DepthProxy
-from src.cloud_proxy import CloudProxy
+from src.cloud_proxy_three import CloudProxy
 import skimage
 import scipy
 import torch

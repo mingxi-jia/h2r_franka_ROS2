@@ -4,8 +4,8 @@ https://github.com/UTNuclearRoboticsPublic/robotiq/tree/kinetic-devel.
 '''
 import numpy as np
 import rospy
-from robotiq_2f_gripper_control.msg import Robotiq2FGripper_robot_output as GripperCmd
-from robotiq_2f_gripper_control.msg import Robotiq2FGripper_robot_input as GripperStat
+from robotiq_c_model_control.msg import CModel_robot_output as GripperCmd
+from robotiq_c_model_control.msg import CModel_robot_input as GripperStat
 
 class Gripper:
 
@@ -17,8 +17,8 @@ class Gripper:
     self.speed_window_size = 2
     self.speed_window = np.zeros([self.speed_window_size])  # [new, old, older, ...]
 
-    self.gripperSub = rospy.Subscriber('/Robotiq2FGripperRobotInput', GripperStat, self.updateGripperStat)
-    self.gripperPub = rospy.Publisher('/Robotiq2FGripperRobotOutput', GripperCmd, queue_size=1)
+    self.gripperSub = rospy.Subscriber('/CModelRobotInput', GripperStat, self.updateGripperStat)
+    self.gripperPub = rospy.Publisher('/CModelRobotOutput', GripperCmd, queue_size=1)
 
 
     print('Waiting for gripper driver to connect ...')
