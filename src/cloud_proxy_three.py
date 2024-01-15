@@ -21,7 +21,7 @@ from skimage.transform import rotate
 import open3d
 from utils import demo_util_pp, transformation
 import sys
-sys.path.append("LEPP")
+sys.path.append("/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP")
 from lepp.clip_preprocess import CLIP_processor
 
 # import scipy
@@ -213,13 +213,13 @@ class CloudProxy:
         depth = self.getDepthImage(2,)
         
 
-    def get_pointcloud_from_depth(self, cam_id, instruction=None, visualize=False):
+    def get_pointcloud_from_depth(self, cam_id, instruction, visualize=False):
         depth = self.getDepthImage(cam_id)
         rgb = self.getRGBImage(cam_id)
         kernel_size = self.kernel_size
         stride = self.stride
-        if instruction is not None:
-            clip_feature, _ = self.clip_processor.get_clip_feature(rgb, instruction, kernel_size=kernel_size, stride=stride)
+
+        clip_feature, _ = self.clip_processor.get_clip_feature(rgb, instruction, kernel_size=kernel_size, stride=stride)
         if cam_id == 1:
             while self.info1 is None:
                 rospy.sleep(0.01)
@@ -239,12 +239,10 @@ class CloudProxy:
         px, py = np.meshgrid(xlin, ylin)
         px = (px - intrinsics[0, 2]) * (depth / intrinsics[0, 0])
         py = (py - intrinsics[1, 2]) * (depth / intrinsics[1, 1])
-        if instruction is not None:
-            points = np.float32([px, py, depth, rgb[..., 0], rgb[..., 1], rgb[..., 2], clip_feature[..., 0]]).transpose(1, 2, 0)
-            cloud=points.reshape(-1,7)
-        else:
-            points = np.float32([px, py, depth, rgb[..., 0], rgb[..., 1], rgb[..., 2]]).transpose(1, 2, 0)
-            cloud=points.reshape(-1,6)
+        
+        
+        points = np.float32([px, py, depth, rgb[..., 0], rgb[..., 1], rgb[..., 2], clip_feature[...,0]]).transpose(1, 2, 0)
+        cloud=points.reshape(-1,7)
         # z_constrain= (cloud[:,2]>0.1) & (cloud[:,2]<1.1)
         # cloud = cloud[z_constrain]
         if visualize:
@@ -311,11 +309,11 @@ class CloudProxy:
     
     def get_fused_clip_cloud(self, instruction):
         self.clear_cache()
-        cloud1 = self.get_pointcloud_from_depth(1)
+        cloud1 = self.get_pointcloud_from_depth(1, instruction)
         cloud1 = self.transform_clip_cloud_to_base(cloud1, 1)
-        cloud2 = self.get_pointcloud_from_depth(2)
+        cloud2 = self.get_pointcloud_from_depth(2, instruction)
         cloud2 = self.transform_clip_cloud_to_base(cloud2, 2)
-        cloud3 = self.get_pointcloud_from_depth(3)
+        cloud3 = self.get_pointcloud_from_depth(3, instruction)
         cloud3 = self.transform_clip_cloud_to_base(cloud3, 3)
         cloud = np.concatenate([cloud1, cloud2, cloud3], axis=0)
         # cloud = np.concatenate([cloud1, cloud3], axis=0)
@@ -333,11 +331,11 @@ class CloudProxy:
     
     def get_fused_cloud(self, instruction):
         self.clear_cache()
-        cloud1 = self.get_pointcloud_from_depth(1, instruction)
+        cloud1 = self.get_pointcloud_from_depth(1)
         cloud1 = self.transform_clip_cloud_to_base(cloud1, 1)
-        cloud2 = self.get_pointcloud_from_depth(2, instruction)
+        cloud2 = self.get_pointcloud_from_depth(2)
         cloud2 = self.transform_clip_cloud_to_base(cloud2, 2)
-        cloud3 = self.get_pointcloud_from_depth(3, instruction)
+        cloud3 = self.get_pointcloud_from_depth(3)
         cloud3 = self.transform_clip_cloud_to_base(cloud3, 3)
         cloud = np.concatenate([cloud1, cloud2, cloud3], axis=0)
         # cloud = np.concatenate([cloud1, cloud3], axis=0)
@@ -683,7 +681,7 @@ class CloudProxy:
             for cloud in separate_cloud:
                 _, rgbc_tmp = self.getTopDownProjectImg(cloud)
                 clip_feature.append(rgbc_tmp[..., 3])
-            clip_feature = np.stack(clip_feature).max(0)
+            clip_feature = np.stack(clip_feature).mean(0)
             clip_feature = (clip_feature - clip_feature.min()) / (clip_feature.max() - clip_feature.min())
             rgbc_average =  np.concatenate([rgb, clip_feature[..., None]], axis=2)
         else:

@@ -12,6 +12,7 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 
 sys.path.append('./')
 sys.path.append('..')
+sys.path.append("/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP")
 
 import rospy
 from src.envs.env import Env
@@ -59,10 +60,16 @@ if __name__ == '__main__':
     # Testing Observations and Image, to be deleted once done all the jobs
     instruction = 'pick object and place into object'
     rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3  = env.cloud_proxy.get_multi_obs()
-    fig, ax = plt.subplots(3)
-    ax[0].imshow(rgbd1[...,:3]/255)
-    ax[1].imshow(rgbd2[...,:3]/255)
-    ax[2].imshow(rgbd3[...,:3]/255)
+    # fig, ax = plt.subplots(3,2)
+    # ax[0][0].imshow(rgbd1[...,:3]/255)
+    # ax[1][0].imshow(np.rot90(rgbd2[180:476,500:730,:3]/255, 2))
+    # ax[2][0].imshow(rgbd3[...,:3]/255)
+    # ax[0][1].imshow(rgbd1[...,3])
+    # ax[1][1].imshow(np.rot90(rgbd2[180:476,500:730,3], 2))
+    # ax[2][1].imshow(rgbd3[...,3])
+    plt.imshow(np.rot90(rgbd2[180:476,500:730,:3]/255, 2))
+    plt.show(block=False)
+    plt.pause(1)
     # depth, rgb, clip_feature_pick, clip_feature_place = env.cloud_proxy.getClipObs(instruction, parsing=True)
     # print(f"RGB shape is :{rgb.shape}")
     # fig, ax = plt.subplots(3,2)
@@ -95,9 +102,15 @@ if __name__ == '__main__':
             instruction = input("Type in pick&place instruction and Enter to take photo:")
             # depth, rgb, clip_feature_pick, clip_feature_place = env.cloud_proxy.getClipObs(instruction, parsing=True)
             rgbd1, rgbd2, rgbd3, _, _, _, _, _, _ = env.cloud_proxy.get_multi_obs()
-            ax[0].imshow(rgbd1[...,:3]/255)
-            ax[1].imshow(rgbd2[...,:3]/255)
-            ax[2].imshow(rgbd3[...,:3]/255)
+            # ax[0][0].imshow(rgbd1[...,:3]/255)
+            # ax[1][0].imshow(np.rot90(rgbd2[180:476,500:730,:3]/255, 2))
+            # ax[2][0].imshow(rgbd3[...,:3]/255)
+            # ax[0][1].imshow(rgbd1[...,3])
+            # ax[1][1].imshow(np.rot90(rgbd2[180:476,500:730,3], 2))
+            # ax[2][1].imshow(rgbd3[...,3])
+            plt.imshow(np.rot90(rgbd2[180:476, 500:730, :3] / 255, 2))
+            plt.show(block=False)
+            plt.pause(1)
             # ax[0][0].imshow(depth)
             # ax[1][0].imshow((rgb/255+clip_feature_pick[..., None])/2)
             # ax[2][0].imshow((rgb/255+clip_feature_place[..., None])/2)
@@ -106,7 +119,6 @@ if __name__ == '__main__':
             # plt.show(block=False)
             # plt.pause(1)
             input("Move the arm to picking pos and press ENTER")
-            time.sleep(1)
             xyz = env.ur5.tool_position.copy()
             p0_theta = env.ur5.joint_values.copy()[-1]
             quat0 = env.ur5.tool_quat.copy()
@@ -123,8 +135,8 @@ if __name__ == '__main__':
             # plt.pause(1)
             env.ur5.gripper.closeGripper()
 
-
-            place_obj = input("Type in placing obj AND PLACING Please manually move to the grasping pose.\n")
+            plt.pause(1)
+            place_obj = input("PLACING Please manually move to the grasping pose.\n")
             xyz = env.ur5.tool_position.copy()
             p1_theta = env.ur5.joint_values.copy()[-1]
             quat1 = env.ur5.tool_quat.copy()
