@@ -15,6 +15,7 @@ sys.path.append('..')
 sys.path.append("/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP")
 
 import rospy
+import tf
 from src.envs.env import Env
 import utils.demo_util_pp as demo_util
 from lepp.parser import parse_instruction
@@ -52,6 +53,7 @@ if __name__ == '__main__':
     obs_source = 'raw'
     env = Env(ws_center=ws_center, action_sequence=action_sequence, obs_source=obs_source)
 
+    tf_listener = tf.TransformListener()
     rospy.sleep(2)
     # env.ur5.moveToHome()
     # env.ur5.gripper.openGripper()
@@ -122,8 +124,14 @@ if __name__ == '__main__':
             xyz = env.ur5.tool_position.copy()
             p0_theta = env.ur5.joint_values.copy()[-1]
             quat0 = env.ur5.tool_quat.copy()
+
             pose0 = np.concatenate((xyz, env.ur5.joint_values.copy()))
+
+
+            xyz0_wrt_base,quat0_wrt_base = tf_listener.lookupTransform('/base_link', '/tool0_controller', rospy.Time(0))
             print(f'grasping pose is at {pose0}')
+            print(f'grasping pose with respect to base is at {xyz0_wrt_base,quat0_wrt_base}')
+
             labelled_x_pick, labelled_y_pick = demo_util.xy2pixel([xyz[0], xyz[1]], pixel_small_reso, pixel_big_reso)
             # labelled_rgb = rgb.astype(int)
             # labelled_rgb[labelled_x_pick-2: labelled_x_pick+2, labelled_y_pick-2: labelled_y_pick+2] = 255
@@ -135,13 +143,21 @@ if __name__ == '__main__':
             # plt.pause(1)
             env.ur5.gripper.closeGripper()
 
+            #This is the command under debug mode
+            # x0, y0 = demo_util.pixel2xy([40, 75], pixel_small_reso, pixel_big_reso)
+            # env.ur5.moveToP(x0, y0, -0.1621 + 0.15, 0, 0, 1.57)
+
             plt.pause(1)
             place_obj = input("PLACING Please manually move to the grasping pose.\n")
             xyz = env.ur5.tool_position.copy()
             p1_theta = env.ur5.joint_values.copy()[-1]
             quat1 = env.ur5.tool_quat.copy()
             pose1 = np.concatenate((xyz, env.ur5.joint_values.copy()))
+
+            xyz1_wrt_base,quat1_wrt_base = tf_listener.lookupTransform('/base_link', '/tool0_controller', rospy.Time(0))
             print(f'grasping pose is at {pose1}')
+            print(f'grasping pose with respect to base is at {xyz1_wrt_base,quat1_wrt_base}')
+
             labelled_x_place, labelled_y_place = demo_util.xy2pixel([xyz[0], xyz[1]], pixel_small_reso, pixel_big_reso)
             # labelled_rgb = rgb.astype(int)
             # labelled_rgb[labelled_x_place - 2: labelled_x_place + 2, labelled_y_place - 2: labelled_y_place + 2] = 255
@@ -172,10 +188,14 @@ if __name__ == '__main__':
                     'p0_theta': p0_theta,
                     'pose0': pose0,
                     'quat0': quat0,
+                    'xyz0_wrt_base': xyz0_wrt_base,
+                    'quat0_wrt_base': quat0_wrt_base,
                     'p1': [labelled_x_place, labelled_y_place],
                     'p1_theta': p1_theta,
                     'pose1': pose1,
                     'quat1': quat1,
+                    'xyz1_wrt_base': xyz1_wrt_base,
+                    'quat1_wrt_base': quat1_wrt_base,
                     'instruction': instruction}
             x = input('Enter r to record this demo and continue episode;\n'
                       'Enter a to abandon this demo and continue episode;\n'

@@ -20,27 +20,45 @@ Y_MAX_ROBOT = down_right[1]
 # pixel_y_reso = 288
 _x_reso = DOWN_XY - UPPER_XY
 _y_reso = RIGHT_XY - LEFT_XY
-pixel_x_reso = 206
-pixel_y_reso = 284
+# pixel_x_reso = 206
+# pixel_y_reso = 284
 
-def xy2pixel(xy):
+def rotatePixelCoordinate(image_shape: tuple, pixel_xy: np.array, rotate_angle: float):
+    '''
+    We define x, y to be row and column respectively
+    rotate_angle is in rad
+    '''
+    image_shape = np.array(image_shape)
+    image_center = image_shape[:2]//2
+    rotation_mat = np.array([[np.cos(rotate_angle), -np.sin(rotate_angle)],
+                             [np.sin(rotate_angle), np.cos(rotate_angle)]])
+    pixel_xy = (pixel_xy-image_center).reshape(2, 1)
+    length = np.sqrt(pixel_xy[0]**2+pixel_xy[1]**2)
+    result = rotation_mat.dot(pixel_xy).reshape(2,)+np.array([image_center[1],image_center[0]])
+    result_x = np.clip(result[0], 0, image_shape[1])
+    result_y = np.clip(result[1], 0, image_shape[0])
+    return np.array([result_x, result_y]).astype(int)
+
+def xy2pixel(xy, pixel_small_reso, pixel_big_reso):
     # upper left corner of the action space is the pixel origin
     x, y = xy
     # pixel_x = (pixel_x_reso/ _x_reso) * (x - UPPER_XY)
     # pixel_y = (pixel_y_reso/ _y_reso) * (y - LEFT_XY)
-    pixel_x = (x-X_MIN_ROBOT) / (X_MAX_ROBOT-X_MIN_ROBOT) * pixel_x_reso
-    pixel_y = (y - Y_MIN_ROBOT) / (Y_MAX_ROBOT - Y_MIN_ROBOT) * pixel_y_reso
+    pixel_x = (x-X_MIN_ROBOT) / (X_MAX_ROBOT-X_MIN_ROBOT) * pixel_small_reso
+    pixel_y = (y - Y_MIN_ROBOT) / (Y_MAX_ROBOT - Y_MIN_ROBOT) * pixel_big_reso
     pixel = np.array([pixel_x, pixel_y]).astype(int)
-    return pixel
+    rotated_pixel = rotatePixelCoordinate([pixel_small_reso, pixel_big_reso], pixel, np.pi/2)
+    return rotated_pixel
 
-def pixel2xy(pixel):
+def pixel2xy(pixel, pixel_small_reso, pixel_big_reso):
+    pixel = rotatePixelCoordinate([pixel_big_reso, pixel_small_reso], pixel, -np.pi/2)
     pixel_x, pixel_y = pixel
     # x = UPPER_XY + UPPERDOWN_XY * pixel_x / pixel_x_reso
     # y = LEFT_XY + LEFTRIGHT_XY * pixel_y / pixel_y_reso
     # x = (_x_reso / pixel_x_reso) * pixel_x +  UPPER_XY
     # y = (_y_reso / pixel_y_reso) * pixel_y + LEFT_XY
-    x = pixel_x/pixel_x_reso*(X_MAX_ROBOT-X_MIN_ROBOT)+X_MIN_ROBOT
-    y = pixel_y / pixel_y_reso * (Y_MAX_ROBOT - Y_MIN_ROBOT) + Y_MIN_ROBOT
+    x = pixel_x/pixel_small_reso*(X_MAX_ROBOT-X_MIN_ROBOT)+X_MIN_ROBOT
+    y = pixel_y / pixel_big_reso * (Y_MAX_ROBOT - Y_MIN_ROBOT) + Y_MIN_ROBOT
     xy = np.array([x, y])
     return xy
 

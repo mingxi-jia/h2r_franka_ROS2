@@ -100,11 +100,14 @@ class CloudProxy:
         self.kernel_size = 40
         self.stride = 20
 
-        self.img_width = int(np.ceil(320/(self.y_size/self.x_size)))
+        self.img_width = 240
         self.img_height = 320
         self.z_table = -0.173
         self.proj_pose = None
         self.rgb_value = [189, 152, 130]
+
+        self.extrinsic2 = self.getCamExtrinsic(2)
+        self.table_to_topdown_height = self.extrinsic2[2, -1] + np.abs(self.z_table)
 
 
     def callbackCloud1(self, msg):
@@ -208,9 +211,7 @@ class CloudProxy:
             while self.rgbimg3 is None:
                 rospy.sleep(0.01)
             return self.rgbimg3
-    
-    def getObs(self):
-        depth = self.getDepthImage(2,)
+
         
 
     def get_pointcloud_from_depth(self, cam_id, instruction, visualize=False):
@@ -772,8 +773,15 @@ class CloudProxy:
         extrinsic3 = self.getCamExtrinsic(3)
         return rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3
 
-    def getObs(self):
-        rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3 = self.get_multi_obs()
+    def getObs(self, instruction):
+        _, _, clip_feature_pick, clip_feature_place = self.getClipObs(instruction, parsing=True)
+
+        depth = np.rot90(self.getDepthImage(2)[190:470, 515:725], 2)
+        rgb = np.rot90(self.getRGBImage(2)[190:470, 515:725], 2)
+        depth = skimage.transform.resize(depth, (self.img_height, self.img_width))
+        rgb = skimage.transform.resize(rgb.astype(float), (self.img_height, self.img_width, 3))
+        
+        return np.clip(self.table_to_topdown_height-depth, 0, 0.3), rgb, clip_feature_pick, clip_feature_place
 
 def main():
     rospy.init_node('test')
