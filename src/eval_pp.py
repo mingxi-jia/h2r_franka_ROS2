@@ -15,7 +15,7 @@ from src.envs.env import Env
 import src.simulator.utils as utils
 import utils.demo_util_pp as demo_util
 import sys
-sys.path.append('/home/u5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP')
+
 
 import torch
 from cliport import agents
@@ -40,6 +40,7 @@ from lepp.clip_preprocess import CLIP_processor
 from lepp.parser import parse_instruction
 from lepp.dataset_tool import dataTool
 # import src.utils.demo_util
+
 
 # import time
 # from termcolor import colored
@@ -107,13 +108,13 @@ def visualize(rgb, depth, p0, p1, p0_theta, p1_theta, clip_features):
 if __name__ == "__main__":
     rospy.init_node('eval_pp')
 
-    path = '/home/u5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/exps/pick-part-in-box-real-n-train100/LEPP-unetl-score-vit-postLinearMul-3-unetl-unet-ParTrue/checkpoints'
+    path = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/exps/data-processed-n-train1/LEPP-unetl-score-vit-postLinearMul-3-unetl-unet-ParTrue-TopdownFalse-CropFalse/checkpoints'
     agent_name = 'LEPP'
-    tcfg = load_hydra_config('/home/u5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/cliport/cfg/train.yaml')
+    tcfg = load_hydra_config('/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/cliport/cfg/train.yaml')
     tcfg['lepp']['model_name'] = 'unetl-score-vit-postLinearMul'
     tcfg['lepp']['pick_kernel_name'] = 'unetl'
     tcfg['lepp']['place_kernel_name'] = 'unet'
-    tcfg['train']['task'] = 'pick-part-in-box-real'
+    tcfg['train']['task'] = 'pick-part-in-brown-box-real'
     tcfg['dataset']['type'] = 'realtable'
     tcfg['lepp']['logit_out_channel'] = 3
 
@@ -121,8 +122,8 @@ if __name__ == "__main__":
     agent.load(os.path.join(path, 'steps=50000.pt'))
 
     clip_processor = CLIP_processor()
-    training_npy = '/home/u5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/'+tcfg['train']['task']+'.npy'
-    querytool = dataTool(training_npy)
+    training_npy = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/'+tcfg['train']['task']+'.npy'
+    # querytool = dataTool(training_npy)
 
     global model, alg, action_sequence, in_hand_mode, workspace, max_z, min_z
     # ws_center = [-0.5539, 0.0298, -0.1625]
@@ -153,8 +154,10 @@ if __name__ == "__main__":
         pick_inst, place_inst = parse_instruction(tcfg['train']['task'], instruction)
         pick_text_feature = clip_processor.get_clip_text_feature(pick_inst)
         place_text_feature = clip_processor.get_clip_text_feature(place_inst)
-        pick_crop, pick_similarity = querytool.query_crop(pick_text_feature)
-        place_crop, place_similarity = querytool.query_crop(place_text_feature)
+        # pick_crop, pick_similarity = querytool.query_crop(pick_text_feature)
+        # place_crop, place_similarity = querytool.query_crop(place_text_feature)
+        pick_crop = None
+        place_crop = None
 
         if pick_crop is not None:
             _, _, clip_feature_pick, _ = clip_processor.get_clip_feature_from_text_and_image(rgb, pick_inst, pick_crop, kernel_size=40, stride=20)

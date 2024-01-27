@@ -37,7 +37,7 @@ from cliport.utils import utils
 from cliport.environments.environment import Environment
 from cliport.utils import utils
 from lepp.clip_preprocess import CLIP_processor
-# from lepp.parser import parse_instruction
+from lepp.parser import parse_instruction
 from lepp.dataset_tool import dataTool
 from cliport.dataset_real import RealDataset
 # import src.utils.demo_util
@@ -78,15 +78,18 @@ def rotatePixelCoordinate(image_shape: tuple, pixel_xy: np.array, rotate_angle: 
 def rotateImage90(image: np.array):
     return np.rot90(image)
 
-def visualize(rgb, depth, p0, p1, p0_theta, p1_theta, clip_features):
-    fig, ax = plt.subplots(1, 3)
+def visualize(rgb, depth, p0, p1, p0_theta, p1_theta, clip_features_pick=None, clip_features_place=None):
+    fig, ax = plt.subplots(1, 4)
     ax[0].imshow(rgb/255)
     ax[1].imshow(depth)
-    ax[2].imshow(clip_features)
+    if clip_features_pick is not None:
+        ax[2].imshow(clip_features_pick)
+    if clip_features_place is not None:
+        ax[3].imshow(clip_features_place)
     # ax[2].imshow(clip_feature_pick[..., 0])
     # ax[3].imshow(clip_feature_place[..., 0])
     p0_theta = (p0_theta + 2*np.pi) % (2*np.pi)
-    p1_theta = p0_theta + p1_theta
+    # p1_theta = p0_theta + p1_theta
     print('row, column, rotz:', p0[0], p0[1])
     ax[0].plot(p0[1], p0[0], marker='o', color="green")
     ax[0].plot(p1[1], p1[0], marker='x', color="red")
@@ -106,34 +109,55 @@ def visualize(rgb, depth, p0, p1, p0_theta, p1_theta, clip_features):
     plt.pause(1)
 
 
-def parse_instruction(instruction):
-    pick, place = instruction.split(' and ')
-    pick = " ".join(pick.split(' ')[1:])
-    place = " ".join(place.split(' ')[2:])
-    return pick, place
 
 if __name__ == "__main__":
     rospy.init_node('eval_pp')
 
     exp_path = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/exps'
-    agent_name = 'LEPP'
     tcfg = load_hydra_config('/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/cliport/cfg/train.yaml')
-    tcfg['lepp']['model_name'] = 'unetl-score-vit-postLinearMul'
-    tcfg['lepp']['pick_kernel_name'] = 'unetl'
-    tcfg['lepp']['place_kernel_name'] = 'eunet'
-    tcfg['train']['task'] = 'pick-part-in-brown-box-processed'
+    agent_name = 'LEPP'
+    pick_kernel_name = 'unetl'
+    place_kernel_name = 'eunet'
+    model_name = 'unetl-score-vit-postLinearMul'
+    logit_out_channel = 3
+    task_name = 'pick-letter-on-color-plates-processed'
+    # task_name = "pick-part-in-brown-box-processed"
+    image_text_ratio=0.5
+    n_demos = 90
+    model_file = 'steps=20000.pt'
+
+
+    # tcfg['lepp']['model_name'] = 'unetl-score-vit-postLinearAdd'
+    tcfg['lepp']['model_name'] = model_name
+    tcfg['lepp']['pick_kernel_name'] = pick_kernel_name
+    tcfg['lepp']['place_kernel_name'] = place_kernel_name
+    # agent_name = 'cliport'
+    # tcfg['lepp']['pick_kernel_name'] = 'none'
+    # tcfg['lepp']['model_name'] = 'none'
+    # tcfg['lepp']['place_kernel_name'] = 'none'
+
+    tcfg['train']['agent'] = agent_name
+    tcfg['train']['task'] = task_name
+    # tcfg['train']['task'] = 'pick-part-in-brown-box-processed'
     tcfg['dataset']['type'] = 'realtable'
     tcfg['dataset']['use_image_goal'] = True
-    tcfg['lepp']['logit_out_channel'] = 3
-    tcfg['train']['n_demos'] = 100
+    tcfg['lepp']['logit_out_channel'] = logit_out_channel
+    tcfg['train']['n_demos'] = n_demos
+    tcfg['dataset']['image_text_ratio'] = image_text_ratio
+
 
 
     training_npy = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/' + tcfg['train']['task'] + '.npy'
-    data_path = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/'
-    train_ds = RealDataset(training_npy, tcfg, n_demos=100)
+    # training_npy = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/demo_2024-01-18-14-45-53-processed.npy'
+    # data_path = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/'
+    train_ds = RealDataset(training_npy, tcfg, n_demos=n_demos)
     agent = agents.names[agent_name](None, tcfg, None, None)
-    path = os.path.join(exp_path, "pick-part-in-brown-box-processed"+f"-n-train{tcfg['train']['n_demos']}", "checkpoints")
-    agent.load(os.path.join(path, 'steps=10000.pt'))
+    path = os.path.join(exp_path, task_name+f"-n-train{tcfg['train']['n_demos']}", f"{agent_name}-{tcfg['lepp']['model_name']}-{logit_out_channel}-{pick_kernel_name}-{place_kernel_name}-ParTrue-TopdownFalse-CropTrue-Ratio{image_text_ratio}", "checkpoints")
+    # path = os.path.join(exp_path, task_name + f"-n-train{tcfg['train']['n_demos']}", agent_name + '-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue',"checkpoints")
+    # path = os.path.join(exp_path, "pick-part-in-brown-box-processed" + f"-n-train{tcfg['train']['n_demos']}",
+    #                     agent_name, "checkpoints")
+    # path = os.path.join(exp_path, task_name, )
+    agent.load(os.path.join(path, model_file))
 
     # clip_processor = CLIP_processor()
     querytool = dataTool(train_ds, tcfg['train']['task'], 'val')
@@ -151,7 +175,10 @@ if __name__ == "__main__":
 
     action_sequence = 'pxyzr'
     obs_source = 'raw'
-    env = Env(ws_center=ws_center, action_sequence=action_sequence, obs_source=obs_source)
+    block_clip_processor = True
+    if agent_name == 'LEPP':
+        block_clip_processor = False
+    env = Env(ws_center=ws_center, action_sequence=action_sequence, obs_source=obs_source, block_clip_processor=block_clip_processor)
     pixel_small_reso, pixel_big_reso = env.cloud_proxy.img_width, env.cloud_proxy.img_height
     rospy.sleep(2)
     env.ur5.moveToHome()
@@ -159,26 +186,29 @@ if __name__ == "__main__":
 
     while True:
         instruction = input("Type instruction and then Press Enter take photo...")
-        depth, rgb, clip_feature_pick, clip_feature_place = env.cloud_proxy.getObs(instruction)
-        clip_feature_pick = clip_feature_pick[..., None]
-        clip_feature_place = clip_feature_place[..., None]
+        depth, rgb, clip_feature_pick, clip_feature_place = env.cloud_proxy.getObs(instruction, block_clip_processor=block_clip_processor, task_name=task_name)
 
-        pick_inst, place_inst = parse_instruction(instruction)
-        pick_text_feature = env.cloud_proxy.clip_processor.get_clip_text_feature(pick_inst)
-        place_text_feature = env.cloud_proxy.clip_processor.get_clip_text_feature(place_inst)
-        pick_crop, pick_similarity = querytool.query_crop(pick_text_feature)
-        place_crop, place_similarity = querytool.query_crop(place_text_feature)
-        # pick_crop = None
-        # place_crop = None
 
-        if pick_crop is not None:
-            _, _, clip_feature_pick_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, pick_inst, pick_crop, kernel_size=40, stride=20)
-            clip_feature_pick = (clip_feature_pick + clip_feature_pick_crop)/2
 
-        if place_crop is not None:
-            _, _, clip_feature_place_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, place_inst, place_crop,
-                                                                                             kernel_size=40, stride=20)
-            clip_feature_place = (clip_feature_place + clip_feature_place_crop) / 2
+        pick_inst, place_inst = parse_instruction(task_name, instruction)
+        if agent_name == 'LEPP':
+            clip_feature_pick = clip_feature_pick[..., None]
+            clip_feature_place = clip_feature_place[..., None]
+            pick_text_feature = env.cloud_proxy.clip_processor.get_clip_text_feature(pick_inst)
+            place_text_feature = env.cloud_proxy.clip_processor.get_clip_text_feature(place_inst)
+            pick_crop, pick_similarity = querytool.query_crop(pick_text_feature)
+            place_crop, place_similarity = querytool.query_crop(place_text_feature)
+            # pick_crop = None
+            # place_crop = None
+
+            if pick_crop is not None:
+                _, _, clip_feature_pick_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, pick_inst, pick_crop, kernel_size=40, stride=20)
+                clip_feature_pick = clip_feature_pick*(1-image_text_ratio) + clip_feature_pick_crop*image_text_ratio
+
+            if place_crop is not None:
+                _, _, clip_feature_place_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, place_inst, place_crop,
+                                                                                                 kernel_size=40, stride=20)
+                clip_feature_place = clip_feature_place*(1-image_text_ratio) + clip_feature_place_crop*image_text_ratio
 
         img = process_obs(rgb, depth)
         # img = rotateImage90(img)
@@ -190,17 +220,27 @@ if __name__ == "__main__":
         info = {'lang_goal': instruction}
 
 
-        Z_MIN_ROBOT=-0.1621
-        pre_pick_height = Z_MIN_ROBOT+0.3
-        pick_height = Z_MIN_ROBOT-0.005
-        pre_place_height = Z_MIN_ROBOT+0.3
-        place_height = Z_MIN_ROBOT+0.2
+
+
 
         act = agent.actReal(obs, info)
 
         p0_x, p0_y, p0_theta = act['pick']
         p1_x, p1_y, p1_theta = act['place']
-        visualize(img[..., :3], img[..., 3], [p0_x, p0_y], [p1_x, p1_y], p0_theta, p1_theta, clip_feature_pick[...,0])
+        if agent_name == 'LEPP':
+            visualize(img[..., :3], img[..., 3], [p0_x, p0_y], [p1_x, p1_y], p0_theta, p1_theta, clip_feature_pick[...,0], clip_feature_place[...,0])
+        else:
+            visualize(img[..., :3], img[..., 3], [p0_x, p0_y], [p1_x, p1_y], p0_theta, p1_theta)
+
+        Z_MIN_ROBOT = -0.1671
+        pre_pick_height = Z_MIN_ROBOT + 0.3
+        relative_pick_height = depth[p0_x-5:p0_x+5, p0_y-5:p0_y+5].mean()-0.08
+        pick_height = Z_MIN_ROBOT + np.clip(relative_pick_height, 0, 0.3)
+        pre_place_height = Z_MIN_ROBOT + 0.30
+        # place_height = Z_MIN_ROBOT + 0.2
+        pixel_range = 10
+        relative_place_height = depth[p1_x - pixel_range:p1_x + pixel_range, p1_y - pixel_range:p1_y + pixel_range].mean() -0.01
+        place_height = Z_MIN_ROBOT + np.clip(relative_place_height, 0, 0.3)
 
         # p0_x, p0_y = rotatePixelCoordinate(img.shape, np.array([p0_x, p0_y]), -np.pi/2)
         # p1_x, p1_y = rotatePixelCoordinate(img.shape, np.array([p1_x, p1_y]), -np.pi/2)

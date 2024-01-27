@@ -124,7 +124,9 @@ if __name__ == '__main__':
             xyz = env.ur5.tool_position.copy()
             p0_theta = env.ur5.joint_values.copy()[-1]
             quat0 = env.ur5.tool_quat.copy()
-
+            # yellow
+            # pentagon
+            # block
             pose0 = np.concatenate((xyz, env.ur5.joint_values.copy()))
 
 
@@ -159,7 +161,7 @@ if __name__ == '__main__':
             print(f'grasping pose with respect to base is at {xyz1_wrt_base,quat1_wrt_base}')
 
             labelled_x_place, labelled_y_place = demo_util.xy2pixel([xyz[0], xyz[1]], pixel_small_reso, pixel_big_reso)
-            # labelled_rgb = rgb.astype(int)
+            # labelled_rgb = rgb.astype(int)yellow pentagon block
             # labelled_rgb[labelled_x_place - 2: labelled_x_place + 2, labelled_y_place - 2: labelled_y_place + 2] = 255
             # ax[1][0].imshow((labelled_rgb/255+clip_feature_pick[..., None])/2)
             # ax[2][0].imshow((labelled_rgb/255+clip_feature_place[..., None])/2)

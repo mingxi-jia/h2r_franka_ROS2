@@ -27,7 +27,7 @@ from lepp.clip_preprocess import CLIP_processor
 # import scipy
 
 class CloudProxy:
-    def __init__(self):
+    def __init__(self, block_clip_processor=False):
         self.topic1 = '/cam_1/depth/color/points'
         self.topic2 = '/depth_to_rgb/points'
         self.topic3 = '/cam_3/depth/color/points'
@@ -96,8 +96,9 @@ class CloudProxy:
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
         self.base_frame = 'base_link'
 
-        self.clip_processor = CLIP_processor()
-        self.kernel_size = 40
+        if not block_clip_processor:
+            self.clip_processor = CLIP_processor()
+        self.kernel_size = 60
         self.stride = 20
 
         self.img_width = 240
@@ -689,11 +690,19 @@ class CloudProxy:
             rgbc_average = None
         return depth, rgbc, rgbc_average
     
-    def getClipObs(self, instruction, parsing=False):
+    def getClipObs(self, instruction, parsing=False, task_name=None):
         def parse_instruction(instruction):
-            pick, place = instruction.split(' and ')
-            pick = " ".join(pick.split(' ')[1:])
-            place = " ".join(place.split(' ')[2:])
+
+
+            if "pyramid" in task_name:
+                pick, place = instruction.split(' on ')
+                pick = " ".join(pick.split(' ')[1:-2])
+                place = " ".join(place.split(' ')[:])
+            else:
+                pick, place = instruction.split(' and ')
+                pick = " ".join(pick.split(' ')[1:])
+                place = " ".join(place.split(' ')[2:])
+
             return pick, place
         if parsing:
             
@@ -773,8 +782,11 @@ class CloudProxy:
         extrinsic3 = self.getCamExtrinsic(3)
         return rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3
 
-    def getObs(self, instruction):
-        _, _, clip_feature_pick, clip_feature_place = self.getClipObs(instruction, parsing=True)
+    def getObs(self, instruction, block_clip_processor=False, task_name=None):
+        if not block_clip_processor:
+            _, _, clip_feature_pick, clip_feature_place = self.getClipObs(instruction, parsing=True, task_name=task_name)
+        else:
+            clip_feature_pick, clip_feature_place = None, None
 
         depth = np.rot90(self.getDepthImage(2)[190:470, 515:725], 2)
         rgb = np.rot90(self.getRGBImage(2)[190:470, 515:725], 2)
@@ -782,6 +794,7 @@ class CloudProxy:
         rgb = skimage.transform.resize(rgb.astype(float), (self.img_height, self.img_width, 3))
         
         return np.clip(self.table_to_topdown_height-depth, 0, 0.3), rgb, clip_feature_pick, clip_feature_place
+
 
 def main():
     rospy.init_node('test')

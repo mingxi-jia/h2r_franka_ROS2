@@ -16,7 +16,7 @@ from skimage.restoration import inpaint
 class Env:
     def __init__(self, ws_center=(-0.5539, 0.0298, -0.145), ws_x=0.3, ws_y=0.3, cam_resolution=0.00155, obs_size=(90, 90),
                  action_sequence='pxyr', in_hand_mode='proj', pick_offset=0.1, place_offset=0.1, in_hand_size=24,
-                 obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0):
+                 obs_source='reconstruct', safe_z_region=1 / 20, place_open_pos=0, block_clip_processor=False):
         assert obs_source == 'reconstruct' or 'raw'
         self.ws_center = ws_center
         self.ws_x = ws_x
@@ -32,7 +32,7 @@ class Env:
         self.ur5 = UR5(pick_offset, place_offset, place_open_pos)
         self.img_proxy = ImgProxy()
         self.depth_proxy = DepthProxy()
-        self.cloud_proxy = CloudProxy()
+        self.cloud_proxy = CloudProxy(block_clip_processor=block_clip_processor)
         self.old_rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
         self.rgbd_img = np.zeros((self.obs_size[0], self.obs_size[1]))
 
