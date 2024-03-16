@@ -27,7 +27,7 @@ from lepp.clip_preprocess import CLIP_processor
 # import scipy
 
 class CloudProxy:
-    def __init__(self, block_clip_processor=False):
+    def __init__(self, block_clip_processor=False, kernel_size=60, stride=20):
         self.topic1 = '/cam_1/depth/color/points'
         self.topic2 = '/depth_to_rgb/points'
         self.topic3 = '/cam_3/depth/color/points'
@@ -98,8 +98,8 @@ class CloudProxy:
 
         if not block_clip_processor:
             self.clip_processor = CLIP_processor()
-        self.kernel_size = 60
-        self.stride = 20
+        self.kernel_size = kernel_size
+        self.stride = stride
 
         self.img_width = 240
         self.img_height = 320
@@ -693,11 +693,17 @@ class CloudProxy:
     def getClipObs(self, instruction, parsing=False, task_name=None):
         def parse_instruction(instruction):
 
+            if instruction.count(' and ') == 2:
+                # temp solution for pyramid in multitask training
 
-            if "pyramid" in task_name:
                 pick, place = instruction.split(' on ')
                 pick = " ".join(pick.split(' ')[1:-2])
                 place = " ".join(place.split(' ')[:])
+
+            # if "pyramid" in task_name:
+            #     pick, place = instruction.split(' on ')
+            #     pick = " ".join(pick.split(' ')[1:-2])
+            #     place = " ".join(place.split(' ')[:])
             else:
                 pick, place = instruction.split(' and ')
                 pick = " ".join(pick.split(' ')[1:])
@@ -788,8 +794,8 @@ class CloudProxy:
         else:
             clip_feature_pick, clip_feature_place = None, None
 
-        depth = np.rot90(self.getDepthImage(2)[190:470, 515:725], 2)
-        rgb = np.rot90(self.getRGBImage(2)[190:470, 515:725], 2)
+        depth = np.rot90(self.getDepthImage(2)[190:480, 515:725], 2)
+        rgb = np.rot90(self.getRGBImage(2)[190:480, 515:725], 2)
         depth = skimage.transform.resize(depth, (self.img_height, self.img_width))
         rgb = skimage.transform.resize(rgb.astype(float), (self.img_height, self.img_width, 3))
         
@@ -803,7 +809,7 @@ def main():
     while True:
         cloudProxy.cloud = None
         # img = cloudProxy.get_pointcloud_from_depth(1, "yellow block")
-        instruction = "orange block"
+        instruction = "letter X block"
         cloud, cloud1, cloud2, cloud3 = cloudProxy.get_fused_clip_cloud(instruction)
         # cloud1, cloud2, cloud3, cloud, cloud_color = cloudProxy.getFusedPointCloud()
         visualize=True

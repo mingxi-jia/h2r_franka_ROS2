@@ -119,12 +119,26 @@ if __name__ == "__main__":
     pick_kernel_name = 'unetl'
     place_kernel_name = 'eunet'
     model_name = 'unetl-score-vit-postLinearMul'
+
+    # agent_name = 'cliport'
+    # pick_kernel_name = None
+    # place_kernel_name = None
+    # model_name = None
+
     logit_out_channel = 3
-    task_name = 'pick-letter-on-color-plates-processed'
+    # task_name = 'block-pyramid-stacking-processed'
+    # task_name = "pick-letter-on-color-plates-processed"
+    task_name = "pick-block-in-bowl-processed"
+    # task_name = "multi-processed-large"
     # task_name = "pick-part-in-brown-box-processed"
     image_text_ratio=0.5
-    n_demos = 90
-    model_file = 'steps=20000.pt'
+    n_demos = 20
+    model_file = 'steps=50000.pt'
+    allow_move = True
+    kernel_size = 60
+    stride = 20
+    kernel_size_image = 40
+
 
 
     # tcfg['lepp']['model_name'] = 'unetl-score-vit-postLinearAdd'
@@ -152,7 +166,7 @@ if __name__ == "__main__":
     # data_path = '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP/data/'
     train_ds = RealDataset(training_npy, tcfg, n_demos=n_demos)
     agent = agents.names[agent_name](None, tcfg, None, None)
-    path = os.path.join(exp_path, task_name+f"-n-train{tcfg['train']['n_demos']}", f"{agent_name}-{tcfg['lepp']['model_name']}-{logit_out_channel}-{pick_kernel_name}-{place_kernel_name}-ParTrue-TopdownFalse-CropTrue-Ratio{image_text_ratio}", "checkpoints")
+    path = os.path.join(exp_path, task_name+f"-n-train{tcfg['train']['n_demos']}", f"{agent_name}-{tcfg['lepp']['model_name']}-{logit_out_channel}-{pick_kernel_name}-{place_kernel_name}-ParTrue-TopdownFalse-CropTrue-Ratio0.5", "checkpoints")
     # path = os.path.join(exp_path, task_name + f"-n-train{tcfg['train']['n_demos']}", agent_name + '-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue',"checkpoints")
     # path = os.path.join(exp_path, "pick-part-in-brown-box-processed" + f"-n-train{tcfg['train']['n_demos']}",
     #                     agent_name, "checkpoints")
@@ -178,12 +192,12 @@ if __name__ == "__main__":
     block_clip_processor = True
     if agent_name == 'LEPP':
         block_clip_processor = False
-    env = Env(ws_center=ws_center, action_sequence=action_sequence, obs_source=obs_source, block_clip_processor=block_clip_processor)
+    env = Env(ws_center=ws_center, action_sequence=action_sequence, obs_source=obs_source, block_clip_processor=block_clip_processor, kernel_size=kernel_size, stride=stride)
     pixel_small_reso, pixel_big_reso = env.cloud_proxy.img_width, env.cloud_proxy.img_height
     rospy.sleep(2)
     env.ur5.moveToHome()
     rospy.sleep(2)
-
+    log_data = []
     while True:
         instruction = input("Type instruction and then Press Enter take photo...")
         depth, rgb, clip_feature_pick, clip_feature_place = env.cloud_proxy.getObs(instruction, block_clip_processor=block_clip_processor, task_name=task_name)
@@ -202,12 +216,12 @@ if __name__ == "__main__":
             # place_crop = None
 
             if pick_crop is not None:
-                _, _, clip_feature_pick_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, pick_inst, pick_crop, kernel_size=40, stride=20)
+                _, _, clip_feature_pick_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, pick_inst, pick_crop, kernel_size=kernel_size_image, stride=stride)
                 clip_feature_pick = clip_feature_pick*(1-image_text_ratio) + clip_feature_pick_crop*image_text_ratio
 
             if place_crop is not None:
                 _, _, clip_feature_place_crop, _ = env.cloud_proxy.clip_processor.get_clip_feature_from_text_and_image(rgb, place_inst, place_crop,
-                                                                                                 kernel_size=40, stride=20)
+                                                                                                 kernel_size=kernel_size_image, stride=stride)
                 clip_feature_place = clip_feature_place*(1-image_text_ratio) + clip_feature_place_crop*image_text_ratio
 
         img = process_obs(rgb, depth)
@@ -229,18 +243,42 @@ if __name__ == "__main__":
         p1_x, p1_y, p1_theta = act['place']
         if agent_name == 'LEPP':
             visualize(img[..., :3], img[..., 3], [p0_x, p0_y], [p1_x, p1_y], p0_theta, p1_theta, clip_feature_pick[...,0], clip_feature_place[...,0])
+            log_data.append({'rgbd': img,
+                             'p0': act['pick'],
+                             'p1': act['place'],
+                             'clip_feature_pick': clip_feature_pick[...,0],
+                             'clip_feature_place': clip_feature_place[...,0]
+                             })
         else:
             visualize(img[..., :3], img[..., 3], [p0_x, p0_y], [p1_x, p1_y], p0_theta, p1_theta)
+            log_data.append({'rgbd': img,
+                             'p0': act['pick'],
+                             'p1': act['place'],
+                             })
 
         Z_MIN_ROBOT = -0.1671
         pre_pick_height = Z_MIN_ROBOT + 0.3
-        relative_pick_height = depth[p0_x-5:p0_x+5, p0_y-5:p0_y+5].mean()-0.08
+        relative_pick_height = depth[p0_x-5:p0_x+5, p0_y-5:p0_y+5].mean()-0.09
         pick_height = Z_MIN_ROBOT + np.clip(relative_pick_height, 0, 0.3)
         pre_place_height = Z_MIN_ROBOT + 0.30
         # place_height = Z_MIN_ROBOT + 0.2
         pixel_range = 10
-        relative_place_height = depth[p1_x - pixel_range:p1_x + pixel_range, p1_y - pixel_range:p1_y + pixel_range].mean() -0.01
-        place_height = Z_MIN_ROBOT + np.clip(relative_place_height, 0, 0.3)
+        pixel_range_start = 5
+        relative_place_height = np.sort(depth[p1_x - pixel_range:p1_x + pixel_range, p1_y - pixel_range:p1_y + pixel_range])
+        relative_place_height = relative_place_height[:5].mean()
+        if " on " in instruction:
+            if relative_place_height < 0.07:
+                relative_place_height = relative_place_height - 0.002
+            elif relative_place_height > 0.07 and relative_place_height < 0.1:
+                relative_place_height = relative_place_height - 0.002
+            else:
+                relative_place_height = relative_place_height - 0.002
+            place_height = Z_MIN_ROBOT + np.clip(relative_place_height, -0.001, 0.3)
+        else:
+            relative_place_height = relative_place_height + 0.08
+            place_height = Z_MIN_ROBOT + 0.1
+
+
 
         # p0_x, p0_y = rotatePixelCoordinate(img.shape, np.array([p0_x, p0_y]), -np.pi/2)
         # p1_x, p1_y = rotatePixelCoordinate(img.shape, np.array([p1_x, p1_y]), -np.pi/2)
@@ -250,22 +288,27 @@ if __name__ == "__main__":
         x1, y1 = demo_util.pixel2xy([p1_x, p1_y], pixel_small_reso, pixel_big_reso)
         # p0_theta = p0_theta
         p0_theta = (p0_theta + 2 * np.pi) % (2 * np.pi)
-        p1_theta = (p0_theta + p1_theta  + 2 * np.pi) % (2 * np.pi)
+        p1_theta = (p0_theta + p1_theta + 2 * np.pi) % (2 * np.pi)
         # p1_theta = p1_theta + 1.57
 
-        env.ur5.moveToP(x0, y0, pre_pick_height, 0,0,p0_theta)
-        env.ur5.moveToP(x0, y0, pick_height, 0, 0, p0_theta)
-        env.ur5.gripper.closeGripper()
-        time.sleep(1)
+        if allow_move:
+            env.ur5.moveToP(x0, y0, pre_pick_height, 0,0,p0_theta)
+            env.ur5.moveToP(x0, y0, pick_height, 0, 0, p0_theta)
+            env.ur5.gripper.closeGripper()
+            time.sleep(1)
 
-        env.ur5.moveToP(x0, y0, pre_place_height, 0, 0, p0_theta)
-        env.ur5.moveToP(x1, y1, pre_place_height, 0, 0, p1_theta)
-        env.ur5.moveToP(x1, y1, place_height, 0, 0, p1_theta)
-        env.ur5.gripper.openGripper()
-        time.sleep(1)
+            env.ur5.moveToP(x0, y0, pre_place_height, 0, 0, p0_theta)
+            env.ur5.moveToP(x1, y1, pre_place_height, 0, 0, p1_theta)
+            env.ur5.moveToP(x1, y1, place_height, 0, 0, p1_theta)
+            env.ur5.gripper.openGripper()
 
-        env.ur5.moveToHome()
+            time.sleep(1)
+            env.ur5.moveToP(x1, y1, 0.3, 0, 0, p1_theta)
+
+            env.ur5.moveToHome()
 
         confirmation = input('q to quit; c to continue.')
         if confirmation=='q':
             break
+
+        np.save('log_data_banana.npy', log_data)

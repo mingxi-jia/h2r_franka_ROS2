@@ -1,6 +1,6 @@
 import numpy as np
 
-demo_file = np.load('demo_4.npy', allow_pickle=True)
+demo_file = np.load('demo_2024-01-02-20-25-01.npy', allow_pickle=True)
 
 # demo_file[-2][0]['instruction'] = 'pick shoe middle and place into brwon box'
 # demo_file[-3][0]['instruction'] = 'pick bowl black part and place into brwon box'
