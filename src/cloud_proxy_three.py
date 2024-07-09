@@ -21,35 +21,35 @@ from skimage.transform import rotate
 import open3d
 from utils import demo_util_pp, transformation
 import sys
-sys.path.append("/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP")
+sys.path.append("/home/master_oogway/panda_ws/src/GEM2.0")
 from lepp.clip_preprocess import CLIP_processor
 
 # import scipy
 
 class CloudProxy:
-    def __init__(self, block_clip_processor=False, kernel_size=60, stride=20):
-        self.topic1 = '/cam_1/depth/color/points'
-        self.topic2 = '/depth_to_rgb/points'
-        self.topic3 = '/cam_3/depth/color/points'
+    def __init__(self, block_clip_processor=False, kernel_sizes=[50, 70, 110], stride=20):
+        # self.topic1 = '/cam_1/depth/color/points'
+        # self.topic2 = '/depth_to_rgb/points'
+        # self.topic3 = '/cam_3/depth/color/points'
 
-        self.sub1 = rospy.Subscriber(self.topic1, PointCloud2, self.callbackCloud1, queue_size=1)
-        self.msg1 = None
-        self.sub2 = rospy.Subscriber(self.topic2, PointCloud2, self.callbackCloud2, queue_size=1)
-        self.msg2 = None
-        self.sub3 = rospy.Subscriber(self.topic3, PointCloud2, self.callbackCloud3, queue_size=1)
-        self.msg3 = None
-        self.image = None
-        self.cloud1 = None
-        self.cloud2 = None
-        self.cloud3 = None
-        self.rgb1 = None
-        self.rgb2 = None
-        self.rgb3 = None
-        self.allow_color_cloud = True
+        # self.sub1 = rospy.Subscriber(self.topic1, PointCloud2, self.callbackCloud1, queue_size=1)
+        # self.msg1 = None
+        # self.sub2 = rospy.Subscriber(self.topic2, PointCloud2, self.callbackCloud2, queue_size=1)
+        # self.msg2 = None
+        # self.sub3 = rospy.Subscriber(self.topic3, PointCloud2, self.callbackCloud3, queue_size=1)
+        # self.msg3 = None
+        # self.image = None
+        # self.cloud1 = None
+        # self.cloud2 = None
+        # self.cloud3 = None
+        # self.rgb1 = None
+        # self.rgb2 = None
+        # self.rgb3 = None
+        # self.allow_color_cloud = True
 
-        self.topic1_depth = "/cam_1/aligned_depth_to_color/image_raw"
-        self.topic2_depth = "/depth_to_rgb/image_raw"
-        self.topic3_depth = "/cam_3/aligned_depth_to_color/image_raw"
+        self.topic1_depth = "/bob/aligned_depth_to_color/image_raw"
+        self.topic2_depth = "/kevin/aligned_depth_to_color/image_raw"
+        self.topic3_depth = "/stuart/aligned_depth_to_color/image_raw"
         self.sub1_depth = rospy.Subscriber(self.topic1_depth, Image, self.callbackDepth1, queue_size=1)
         self.depth1 = None
         self.sub2_depth = rospy.Subscriber(self.topic2_depth, Image, self.callbackDepth2, queue_size=1)
@@ -57,9 +57,9 @@ class CloudProxy:
         self.sub3_depth = rospy.Subscriber(self.topic3_depth, Image, self.callbackDepth3, queue_size=1)
         self.depth3 = None
 
-        self.topic1_info = "/cam_1/aligned_depth_to_color/camera_info"
-        self.topic2_info = "/depth_to_rgb/camera_info"
-        self.topic3_info = "/cam_3/aligned_depth_to_color/camera_info"
+        self.topic1_info = "/bob/aligned_depth_to_color/camera_info"
+        self.topic2_info = "/kevin/aligned_depth_to_color/camera_info"
+        self.topic3_info = "/stuart/aligned_depth_to_color/camera_info"
         self.sub1_info = rospy.Subscriber(self.topic1_info, CameraInfo, self.callbackInfo1, queue_size=1)
         self.info1 = None
         self.sub2_info = rospy.Subscriber(self.topic2_info, CameraInfo, self.callbackInfo2, queue_size=1)
@@ -67,9 +67,9 @@ class CloudProxy:
         self.sub3_info = rospy.Subscriber(self.topic3_info, CameraInfo, self.callbackInfo3, queue_size=1)
         self.info3 = None
 
-        self.topic1_rgb = "/cam_1/color/image_raw"
-        self.topic2_rgb = "/rgb/image_raw"
-        self.topic3_rgb = "/cam_3/color/image_raw"
+        self.topic1_rgb = "/bob/color/image_raw"
+        self.topic2_rgb = "/kevin/color/image_raw"
+        self.topic3_rgb = "/stuart/color/image_raw"
         self.sub1_rgb = rospy.Subscriber(self.topic1_rgb, Image, self.callbackRGB1, queue_size=1)
         self.rgbimg1 = None
         self.sub2_rgb = rospy.Subscriber(self.topic2_rgb, Image, self.callbackRGB2, queue_size=1)
@@ -77,14 +77,14 @@ class CloudProxy:
         self.sub3_rgb = rospy.Subscriber(self.topic3_rgb, Image, self.callbackRGB3, queue_size=1)
         self.rgbimg3 = None
 
-        self.rgb1_frame = "cam_1_color_optical_frame"
-        self.rgb2_frame = "rgb_camera_link"
-        self.rgb3_frame = "cam_3_color_optical_frame"
+        self.rgb1_frame = "bob_color_optical_frame"
+        self.rgb2_frame = "kevin_color_optical_frame"
+        self.rgb3_frame = "stuart_color_optical_frame"
 
         # RT base_link
-        self.workspace = np.array([[0.22, 0.65],
-                                    [-0.2, 0.37],
-                                    [-0.3, 0.2]])
+        self.workspace = np.array([[0.28, 0.71],
+                                    [-0.32, 0.26],
+                                    [-0.1, 1.0]])
         self.center = self.workspace.mean(-1)
         self.x_size = self.workspace[0].max() - self.workspace[0].min()
         self.x_half = self.x_size/2
@@ -94,11 +94,11 @@ class CloudProxy:
 
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
-        self.base_frame = 'base_link'
+        self.base_frame = 'panda_link0'
 
         if not block_clip_processor:
             self.clip_processor = CLIP_processor()
-        self.kernel_size = kernel_size
+        self.kernel_sizes = kernel_sizes
         self.stride = stride
 
         self.img_width = 240
@@ -193,10 +193,6 @@ class CloudProxy:
                     rospy.sleep(0.01)
                 images.append(self.depth3/1000)
         image = np.median(images, axis=0)
-        # self.image = self.image[240-100:240+100, 320-100:320+100]
-        # self.image[np.isnan(self.image)] = 0
-        # self.image = -self.image
-        # self.image -= self.image.min()
         return image
 
     def getRGBImage(self, cam_id):
@@ -218,10 +214,15 @@ class CloudProxy:
     def get_pointcloud_from_depth(self, cam_id, instruction, visualize=False):
         depth = self.getDepthImage(cam_id)
         rgb = self.getRGBImage(cam_id)
-        kernel_size = self.kernel_size
+        kernel_sizes = self.kernel_sizes
         stride = self.stride
+        clip_feature = np.zeros(rgb.shape)
+        for size in kernel_sizes:
+            feature = self.clip_processor.get_clip_feature(rgb, instruction, size, stride)[0]
+            feature[feature < 0.4 + size * 0.005] = 0
+            clip_feature += feature
+        clip_feature /= len(kernel_sizes)
 
-        clip_feature, _ = self.clip_processor.get_clip_feature(rgb, instruction, kernel_size=kernel_size, stride=stride)
         if cam_id == 1:
             while self.info1 is None:
                 rospy.sleep(0.01)
@@ -303,9 +304,6 @@ class CloudProxy:
         xx = xx.reshape(-1, 1)
         yy = yy.reshape(-1, 1)
         pts = np.concatenate([xx, yy, np.ones_like(yy)*(self.z_table), np.ones_like(yy)*r, np.ones_like(yy)*g, np.ones_like(yy)*b, np.zeros_like(yy)], 1)
-        # pts = pts[np.logical_not(((pts[:, 0] < self.center[0] + self.x_half) * (pts[:, 0] > self.center[0] - self.x_half) * 
-        #                           (pts[:, 1] < self.center[1] + self.y_half) * (pts[:, 1] > self.center[1] - self.y_half)))]
-        # pts = pts[np.logical_not(((pts[:, 1] < 0.239 + half_size) * (pts[:, 1] > 0.239 - half_size)) + ((pts[:, 1] < -0.21 + half_size) * (pts[:, 1] > -0.21 - half_size)))]
         cloud = np.concatenate([cloud, pts], axis=0)
         return cloud
     
@@ -374,7 +372,7 @@ class CloudProxy:
         rbg[...,1] = rgb_arr['g']
         rbg[...,2] = rgb_arr['b']
 
-        return xyz, rbg
+        return xyz, rbgs
     
     def transform(self, cloud, T, isPosition=True):
         '''Apply the homogeneous transform T to the point cloud. Use isPosition=False if transforming unit vectors.'''
@@ -462,7 +460,6 @@ class CloudProxy:
         cloud1, rgb1 = self.getFilteredPointCloud(self.cloud1, self.rgb1)
         cloud2, rgb2 = self.getFilteredPointCloud(self.cloud2, self.rgb2)
         cloud3, rgb3 = self.getFilteredPointCloud(self.cloud3, self.rgb3)
-        # cloud3, rgb3 = self.getFilteredPointCloud(self.cloud3, self.rgb3, manual_offset=[0.022, 0.005, 0.05])
         
         cloud = np.concatenate((cloud1, cloud2, cloud3))
         rgb = np.concatenate((rgb1, rgb2, rgb3))
@@ -475,7 +472,6 @@ class CloudProxy:
         rgb = rgb[ind]
         
         # generate 'fake' point cloud for area outside the bins
-        padding_more = 0.0
         x = np.arange((self.center[0]-self.x_half*2)*1000, (self.center[0]+self.x_half*2)*1000, 2)
         y = np.arange((self.center[1]-self.y_half*2)*1000, (self.center[1]+self.y_half*2)*1000, 2)
         xx, yy = np.meshgrid(x, y)
@@ -484,16 +480,12 @@ class CloudProxy:
         xx = xx.reshape(-1, 1)
         yy = yy.reshape(-1, 1)
         pts = np.concatenate([xx, yy, np.ones_like(yy)*(self.z_min)], 1)
-        # pts = pts[np.logical_not(((pts[:, 0] < self.center[0] + self.x_half) * (pts[:, 0] > self.center[0] - self.x_half) * 
-        #                           (pts[:, 1] < self.center[1] + self.y_half) * (pts[:, 1] > self.center[1] - self.y_half)))]
-        # pts = pts[np.logical_not(((pts[:, 1] < 0.239 + half_size) * (pts[:, 1] > 0.239 - half_size)) + ((pts[:, 1] < -0.21 + half_size) * (pts[:, 1] > -0.21 - half_size)))]
         cloud = np.concatenate([cloud, pts])
         self.cloud = cloud
 
         if self.allow_color_cloud:
-            # predefined_color = [170,166,159]
             predefined_color = [255,255,255]
-            padding_rgb = np.ones([pts.shape[0], 3]) * np.array(predefined_color)
+            padding_rgb = np.ones([pts.shape[0], 3]) 
             rgb = np.concatenate([rgb, padding_rgb])
             cloud_color = np.concatenate([cloud, rgb], axis=-1)
             self.cloud_color = cloud_color
@@ -558,15 +550,6 @@ class CloudProxy:
         depth = depth.reshape(img_size, img_size)
         # fill nans
         depth = self.interpolate(depth)
-        # mask = np.isnan(depth)
-        # depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
-        # imputer = SimpleImputer(missing_values=np.nan, strategy='median')
-        # imputer_depth = imputer.fit_transform(depth)
-        # if imputer_depth.shape != depth.shape:
-        #     mask = np.isnan(depth)
-        #     depth[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), depth[~mask])
-        # else:
-        #     depth = imputer_depth
         return depth
     
     def getTopDownProjectImg(self, cloud_rgbc, projection_height=1., proj_pos=None):
@@ -587,11 +570,8 @@ class CloudProxy:
         rgbc = np.copy(cloud_rgbc[:, 3:])
 
         view_matrix = transformation.euler_matrix(0, np.pi, 0).dot(np.eye(4))
-        # view_matrix = np.eye(4)
         view_matrix[:3, 3] = [proj_pos[0], -proj_pos[1], proj_pos[2]]
         view_matrix = transformation.euler_matrix(0, 0, 0).dot(view_matrix)
-        # view_matrix[:3, 3] = [self.center[0], -self.center[1], projection_height]
-        # view_matrix = transformation.euler_matrix(0, 0, 0).dot(view_matrix)
         augment = np.ones((1, cloud.shape[0]))
         pts = np.concatenate((cloud.T, augment), axis=0)
         scale = 1.15
@@ -603,7 +583,6 @@ class CloudProxy:
         ])
         tran_world_pix = np.matmul(projection_matrix, view_matrix)
         pts = np.matmul(tran_world_pix, pts)
-        # pts[1] = -pts[1]
         pts[0] = (pts[0] + 1) * img_size / 2
         pts[1] = (pts[1] + 1) * img_size / 2
 
@@ -804,25 +783,20 @@ class CloudProxy:
 
 def main():
     rospy.init_node('test')
-    cloudProxy = CloudProxy()
-    img_ = None
-    while True:
-        cloudProxy.cloud = None
-        # img = cloudProxy.get_pointcloud_from_depth(1, "yellow block")
-        instruction = "letter X block"
-        cloud, cloud1, cloud2, cloud3 = cloudProxy.get_fused_clip_cloud(instruction)
-        # cloud1, cloud2, cloud3, cloud, cloud_color = cloudProxy.getFusedPointCloud()
-        visualize=True
-        if visualize:
-            pcd = open3d.geometry.PointCloud()
-            pcd.points = open3d.utility.Vector3dVector(cloud[:, :3])
-            clip_cloud = np.copy(cloud[:, 6:7])
-            clip_cloud = (clip_cloud - clip_cloud.min()) / (clip_cloud.max() - clip_cloud.min())
-            pcd.colors = open3d.utility.Vector3dVector(cloud[:, 3:6]*clip_cloud/255)
-            open3d.visualization.draw_geometries([pcd])
-        depth, rgbc, rgbc_average = cloudProxy.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
-        depth, rgbc, rgbc_average = cloudProxy.getHeightmapReconstruct(cloud2)
-        rgbc = cloudProxy._preProcessRGBC(rgbc)
+    cloud_proxy = CloudProxy()
+    instructions = ['spray bottle', 'baseball', 'cube']
+    for instruction in instructions:
+        cloud_proxy.cloud = None
+        cloud, cloud1, cloud2, cloud3 = cloud_proxy.get_fused_clip_cloud(instruction)
+        pcd = open3d.geometry.PointCloud()
+        pcd.points = open3d.utility.Vector3dVector(cloud[:, :3])
+        clip_cloud = np.copy(cloud[:, 6:7])
+        clip_cloud = (clip_cloud - clip_cloud.min()) / (clip_cloud.max() - clip_cloud.min())
+        pcd.colors = open3d.utility.Vector3dVector(cloud[:, 3:6] / 255 * 0.5 + clip_cloud)
+        open3d.visualization.draw_geometries([pcd])
+        depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
+        depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud2)
+        rgbc = cloud_proxy._preProcessRGBC(rgbc)
 
 
 

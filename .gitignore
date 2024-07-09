@@ -12,3 +12,5 @@
 /src/envs/__pycache__
 /src/utils/__pycache__
 /venv
+
+/build
