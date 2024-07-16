@@ -196,15 +196,15 @@ class CloudProxy:
         return image
 
     def getRGBImage(self, cam_id):
-        if cam_id == 1:
+        if cam_id == 1 or cam_id == 'bob':
             while self.rgbimg1 is None:
                 rospy.sleep(0.01)
             return self.rgbimg1
-        if cam_id == 2:
+        if cam_id == 2 or cam_id == 'kevin':
             while self.rgbimg2 is None:
                 rospy.sleep(0.01)
-            return cv2.cvtColor(self.rgbimg2, cv2.COLOR_BGRA2RGB ) #only for azure
-        if cam_id == 3:
+            return cv2.cvtColor(self.rgbimg2, cv2.COLOR_BGRA2RGB )[:, :, ::-1] #only for azure
+        if cam_id == 3 or cam_id == 'stuart':
             while self.rgbimg3 is None:
                 rospy.sleep(0.01)
             return self.rgbimg3
@@ -784,7 +784,7 @@ class CloudProxy:
 def main():
     rospy.init_node('test')
     cloud_proxy = CloudProxy()
-    instructions = ['spray bottle', 'baseball', 'cube']
+    instructions = ['cup', 'hammer', 'cube']
     for instruction in instructions:
         cloud_proxy.cloud = None
         cloud, cloud1, cloud2, cloud3 = cloud_proxy.get_fused_clip_cloud(instruction)
@@ -792,7 +792,7 @@ def main():
         pcd.points = open3d.utility.Vector3dVector(cloud[:, :3])
         clip_cloud = np.copy(cloud[:, 6:7])
         clip_cloud = (clip_cloud - clip_cloud.min()) / (clip_cloud.max() - clip_cloud.min())
-        pcd.colors = open3d.utility.Vector3dVector(cloud[:, 3:6] / 255 * 0.5 + clip_cloud)
+        pcd.colors = open3d.utility.Vector3dVector(cloud1[:, 3:6] / 255 * 0.5 + clip_cloud)
         open3d.visualization.draw_geometries([pcd])
         depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
         depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud2)
