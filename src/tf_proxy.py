@@ -7,7 +7,7 @@ class TFProxy:
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
 
-    def lookupTransform(self, fromFrame, toFrame, lookupTime=rospy.Time(0)):
+    def lookup_transform(self, fromFrame, toFrame, lookupTime=rospy.Time(0)):
         """
         Lookup a transform in the TF tree.
         :param fromFrame: the frame from which the transform is calculated

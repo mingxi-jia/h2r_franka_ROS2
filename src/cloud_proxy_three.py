@@ -22,64 +22,58 @@ import open3d
 from utils import demo_util_pp, transformation
 import sys
 sys.path.append("/home/master_oogway/panda_ws/src/GEM2.0")
-from lepp.clip_preprocess import CLIP_processor
 
 # import scipy
 
 class CloudProxy:
-    def __init__(self, block_clip_processor=False, kernel_sizes=[50, 70, 110], stride=20):
-        # self.topic1 = '/cam_1/depth/color/points'
-        # self.topic2 = '/depth_to_rgb/points'
-        # self.topic3 = '/cam_3/depth/color/points'
+    def __init__(self):
 
-        # self.sub1 = rospy.Subscriber(self.topic1, PointCloud2, self.callbackCloud1, queue_size=1)
-        # self.msg1 = None
-        # self.sub2 = rospy.Subscriber(self.topic2, PointCloud2, self.callbackCloud2, queue_size=1)
-        # self.msg2 = None
-        # self.sub3 = rospy.Subscriber(self.topic3, PointCloud2, self.callbackCloud3, queue_size=1)
-        # self.msg3 = None
-        # self.image = None
-        # self.cloud1 = None
-        # self.cloud2 = None
-        # self.cloud3 = None
-        # self.rgb1 = None
-        # self.rgb2 = None
-        # self.rgb3 = None
-        # self.allow_color_cloud = True
+        self.cam_names = ['bob', 'kevin', 'stuart']
+        self.base_frame = 'panda_link0'
 
         self.topic1_depth = "/bob/aligned_depth_to_color/image_raw"
         self.topic2_depth = "/kevin/aligned_depth_to_color/image_raw"
         self.topic3_depth = "/stuart/aligned_depth_to_color/image_raw"
-        self.sub1_depth = rospy.Subscriber(self.topic1_depth, Image, self.callbackDepth1, queue_size=1)
+        self.topic4_depth = "/tim/aligned_depth_to_color/image_raw"
+        self.sub1_depth = rospy.Subscriber(self.topic1_depth, Image, self.call_back_depth1, queue_size=1)
         self.depth1 = None
-        self.sub2_depth = rospy.Subscriber(self.topic2_depth, Image, self.callbackDepth2, queue_size=1)
+        self.sub2_depth = rospy.Subscriber(self.topic2_depth, Image, self.call_back_depth2, queue_size=1)
         self.depth2 = None
-        self.sub3_depth = rospy.Subscriber(self.topic3_depth, Image, self.callbackDepth3, queue_size=1)
+        self.sub3_depth = rospy.Subscriber(self.topic3_depth, Image, self.call_back_depth3, queue_size=1)
         self.depth3 = None
+        self.sub4_depth = rospy.Subscriber(self.topic4_depth, Image, self.call_back_depth4, queue_size=1)
+        self.depth4 = None
 
-        self.topic1_info = "/bob/aligned_depth_to_color/camera_info"
-        self.topic2_info = "/kevin/aligned_depth_to_color/camera_info"
-        self.topic3_info = "/stuart/aligned_depth_to_color/camera_info"
-        self.sub1_info = rospy.Subscriber(self.topic1_info, CameraInfo, self.callbackInfo1, queue_size=1)
+        self.topic1_info = "/bob/color/camera_info"
+        self.topic2_info = "/kevin/color/camera_info"
+        self.topic3_info = "/stuart/color/camera_info"
+        self.topic4_info = "/tim/color/camera_info"
+        self.sub1_info = rospy.Subscriber(self.topic1_info, CameraInfo, self.call_back_info1, queue_size=1)
         self.info1 = None
-        self.sub2_info = rospy.Subscriber(self.topic2_info, CameraInfo, self.callbackInfo2, queue_size=1)
+        self.sub2_info = rospy.Subscriber(self.topic2_info, CameraInfo, self.call_back_info2, queue_size=1)
         self.info2 = None
-        self.sub3_info = rospy.Subscriber(self.topic3_info, CameraInfo, self.callbackInfo3, queue_size=1)
+        self.sub3_info = rospy.Subscriber(self.topic3_info, CameraInfo, self.call_back_info3, queue_size=1)
         self.info3 = None
+        self.sub4_info = rospy.Subscriber(self.topic4_info, CameraInfo, self.call_back_info4, queue_size=1)
+        self.info4 = None
 
         self.topic1_rgb = "/bob/color/image_raw"
         self.topic2_rgb = "/kevin/color/image_raw"
         self.topic3_rgb = "/stuart/color/image_raw"
-        self.sub1_rgb = rospy.Subscriber(self.topic1_rgb, Image, self.callbackRGB1, queue_size=1)
+        self.topic4_rgb = "/tim/color/image_raw"
+        self.sub1_rgb = rospy.Subscriber(self.topic1_rgb, Image, self.call_back_rgb1, queue_size=1)
         self.rgbimg1 = None
-        self.sub2_rgb = rospy.Subscriber(self.topic2_rgb, Image, self.callbackRGB2, queue_size=1)
+        self.sub2_rgb = rospy.Subscriber(self.topic2_rgb, Image, self.call_back_rgb2, queue_size=1)
         self.rgbimg2 = None
-        self.sub3_rgb = rospy.Subscriber(self.topic3_rgb, Image, self.callbackRGB3, queue_size=1)
+        self.sub3_rgb = rospy.Subscriber(self.topic3_rgb, Image, self.call_back_rgb3, queue_size=1)
         self.rgbimg3 = None
+        self.sub4_rgb = rospy.Subscriber(self.topic4_rgb, Image, self.call_back_rgb4, queue_size=1)
+        self.rgbimg4 = None
 
         self.rgb1_frame = "bob_color_optical_frame"
         self.rgb2_frame = "kevin_color_optical_frame"
         self.rgb3_frame = "stuart_color_optical_frame"
+        self.rgb4_frame = "tim_color_optical_frame"
 
         # RT base_link
         self.workspace = np.array([[0.28, 0.71],
@@ -94,24 +88,10 @@ class CloudProxy:
 
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
-        self.base_frame = 'panda_link0'
 
-        if not block_clip_processor:
-            self.clip_processor = CLIP_processor()
-        self.kernel_sizes = kernel_sizes
-        self.stride = stride
+        rospy.sleep(1) # key thing, dont delete
 
-        self.img_width = 240
-        self.img_height = 320
-        self.z_table = -0.173
-        self.proj_pose = None
-        self.rgb_value = [189, 152, 130]
-
-        self.extrinsic2 = self.getCamExtrinsic(2)
-        self.table_to_topdown_height = self.extrinsic2[2, -1] + np.abs(self.z_table)
-
-
-    def callbackCloud1(self, msg):
+    def call_back_cloud1(self, msg):
         self.msg1 = msg
         cloudTime = self.msg1.header.stamp
         cloudFrame = self.msg1.header.frame_id
@@ -119,12 +99,12 @@ class CloudProxy:
         cloud, rgb = self.get_xyzrgb_points(cloud_arr, remove_nans=True)
         mask = np.logical_not(np.isnan(cloud).any(axis=1))
         cloud = cloud[mask]
-        T = self.lookupTransform(cloudFrame, self.base_frame, rospy.Time(0))
+        T = self.lookup_transform(cloudFrame, self.base_frame, rospy.Time(0))
         cloud = self.transform(cloud, T)
         self.cloud1 = cloud
         self.rgb1 = rgb
     
-    def callbackCloud2(self, msg):
+    def call_back_cloud2(self, msg):
         self.msg2 = msg
         cloudTime = self.msg2.header.stamp
         cloudFrame = self.msg2.header.frame_id
@@ -132,12 +112,12 @@ class CloudProxy:
         cloud, rgb = self.get_xyzrgb_points(cloud_arr, remove_nans=True)
         mask = np.logical_not(np.isnan(cloud).any(axis=1))
         cloud = cloud[mask]
-        T = self.lookupTransform(cloudFrame, self.base_frame, rospy.Time(0))
+        T = self.lookup_transform(cloudFrame, self.base_frame, rospy.Time(0))
         cloud = self.transform(cloud, T)
         self.cloud2 = cloud
         self.rgb2 = rgb
 
-    def callbackCloud3(self, msg):
+    def call_back_cloud3(self, msg):
         self.msg3 = msg
         cloudTime = self.msg3.header.stamp
         cloudFrame = self.msg3.header.frame_id
@@ -145,57 +125,83 @@ class CloudProxy:
         cloud, rgb = self.get_xyzrgb_points(cloud_arr, remove_nans=True)
         mask = np.logical_not(np.isnan(cloud).any(axis=1))
         cloud = cloud[mask]
-        T = self.lookupTransform(cloudFrame, self.base_frame, rospy.Time(0))
+        T = self.lookup_transform(cloudFrame, self.base_frame, rospy.Time(0))
         cloud = self.transform(cloud, T)
         self.cloud3 = cloud
         self.rgb3 = rgb
     
-    def callbackInfo1(self, msg):
+    def call_back_cloud4(self, msg):
+        self.msg4 = msg
+        cloudTime = self.msg4.header.stamp
+        cloudFrame = self.msg4.header.frame_id
+        cloud_arr = ros_numpy.point_cloud2.pointcloud2_to_array(self.msg4)
+        cloud, rgb = self.get_xyzrgb_points(cloud_arr, remove_nans=True)
+        mask = np.logical_not(np.isnan(cloud).any(axis=1))
+        cloud = cloud[mask]
+        T = self.lookup_transform(cloudFrame, self.base_frame, rospy.Time(0))
+        cloud = self.transform(cloud, T)
+        self.cloud4 = cloud
+        self.rgb4 = rgb
+    
+    def call_back_info1(self, msg):
         self.info1 = np.array(msg.K).reshape(3,3)
     
-    def callbackInfo2(self, msg):
+    def call_back_info2(self, msg):
         self.info2 = np.array(msg.K).reshape(3,3)
 
-    def callbackInfo3(self, msg):
+    def call_back_info3(self, msg):
         self.info3 = np.array(msg.K).reshape(3,3)
 
-    def callbackDepth1(self, msg):
+    def call_back_info4(self, msg):
+        self.info4 = np.array(msg.K).reshape(3,3)
+
+    def call_back_depth1(self, msg):
         self.depth1 = ros_numpy.numpify(msg)
 
-    def callbackDepth2(self, msg):
+    def call_back_depth2(self, msg):
         self.depth2 = ros_numpy.numpify(msg)
 
-    def callbackDepth3(self, msg):
+    def call_back_depth3(self, msg):
         self.depth3 = ros_numpy.numpify(msg)
+    
+    def call_back_depth4(self, msg):
+        self.depth4 = ros_numpy.numpify(msg)
 
-    def callbackRGB1(self, msg):
+    def call_back_rgb1(self, msg):
         self.rgbimg1 = ros_numpy.numpify(msg)
 
-    def callbackRGB2(self, msg):
+    def call_back_rgb2(self, msg):
         self.rgbimg2 = ros_numpy.numpify(msg)
 
-    def callbackRGB3(self, msg):
+    def call_back_rgb3(self, msg):
         self.rgbimg3 = ros_numpy.numpify(msg)
+    
+    def call_back_rgb4(self, msg):
+        self.rgbimg4 = ros_numpy.numpify(msg)
 
-    def getDepthImage(self, cam_id, iteration=10):
+    def get_depth_image(self, cam_id, iteration=10):
         images = []
         for _ in range(iteration):
-            if cam_id == 1:
+            if cam_id == 1 or cam_id == 'bob':
                 while self.depth1 is None:
                     rospy.sleep(0.01)
                 images.append(self.depth1/1000)
-            if cam_id == 2:
+            if cam_id == 2 or cam_id == 'kevin':
                 while self.depth2 is None:
                     rospy.sleep(0.01)
-                images.append(self.depth2)
-            if cam_id == 3:
+                images.append(self.depth2/1000)
+            if cam_id == 3 or cam_id == 'stuart':
                 while self.depth3 is None:
                     rospy.sleep(0.01)
                 images.append(self.depth3/1000)
+            if cam_id == 4 or cam_id == 'tim':
+                while self.depth4 is None:
+                    rospy.sleep(0.01)
+                images.append(self.depth4/1000)
         image = np.median(images, axis=0)
         return image
 
-    def getRGBImage(self, cam_id):
+    def get_rgb_image(self, cam_id):
         if cam_id == 1 or cam_id == 'bob':
             while self.rgbimg1 is None:
                 rospy.sleep(0.01)
@@ -203,71 +209,43 @@ class CloudProxy:
         if cam_id == 2 or cam_id == 'kevin':
             while self.rgbimg2 is None:
                 rospy.sleep(0.01)
-            return cv2.cvtColor(self.rgbimg2, cv2.COLOR_BGRA2RGB )[:, :, ::-1] #only for azure
+            return self.rgbimg2
         if cam_id == 3 or cam_id == 'stuart':
             while self.rgbimg3 is None:
                 rospy.sleep(0.01)
             return self.rgbimg3
-
-        
-
-    def get_pointcloud_from_depth(self, cam_id, instruction, visualize=False):
-        depth = self.getDepthImage(cam_id)
-        rgb = self.getRGBImage(cam_id)
-        kernel_sizes = self.kernel_sizes
-        stride = self.stride
-        clip_feature = np.zeros(rgb.shape)
-        for size in kernel_sizes:
-            feature = self.clip_processor.get_clip_feature(rgb, instruction, size, stride)[0]
-            feature[feature < 0.4 + size * 0.005] = 0
-            clip_feature += feature
-        clip_feature /= len(kernel_sizes)
-
-        if cam_id == 1:
-            while self.info1 is None:
+        if cam_id == 4 or cam_id == 'tim':
+            while self.rgbimg4 is None:
                 rospy.sleep(0.01)
-            intrinsics = self.info1
-        if cam_id == 2:
-            while self.info2 is None:
-                rospy.sleep(0.01)
-            intrinsics = self.info2
-        if cam_id == 3:
-            while self.info3 is None:
-                rospy.sleep(0.01)
-            intrinsics = self.info3
-            
-        height, width = depth.shape
-        xlin = np.linspace(0, width - 1, width)
-        ylin = np.linspace(0, height - 1, height)
-        px, py = np.meshgrid(xlin, ylin)
-        px = (px - intrinsics[0, 2]) * (depth / intrinsics[0, 0])
-        py = (py - intrinsics[1, 2]) * (depth / intrinsics[1, 1])
-        
-        
-        points = np.float32([px, py, depth, rgb[..., 0], rgb[..., 1], rgb[..., 2], clip_feature[...,0]]).transpose(1, 2, 0)
-        cloud=points.reshape(-1,7)
-        # z_constrain= (cloud[:,2]>0.1) & (cloud[:,2]<1.1)
-        # cloud = cloud[z_constrain]
-        if visualize:
-            pcd = open3d.geometry.PointCloud()
-            pcd.points = open3d.utility.Vector3dVector(cloud[:,:3])
-            pcd.colors = open3d.utility.Vector3dVector(cloud[:, 3:6]/255)
-            open3d.visualization.draw_geometries([pcd])
-        # the output cloud is in rgb frame
-        return cloud
+            return self.rgbimg4
+
     
     def transform_clip_cloud_to_base(self, cloud, cam_id):
-        if cam_id == 1:
+        if cam_id == 1 or cam_id == 'bob':
             rgb_frame = self.rgb1_frame
-        if cam_id == 2:
+        if cam_id == 2 or cam_id == 'kevin':
             rgb_frame = self.rgb2_frame
-            self.proj_pose = self.lookupTransform(rgb_frame, self.base_frame, rospy.Time(0))
-        if cam_id == 3:
+            self.proj_pose = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
+        if cam_id == 3 or cam_id == 'stuart':
             rgb_frame = self.rgb3_frame
-        T = self.lookupTransform(rgb_frame, self.base_frame, rospy.Time(0))
+        # if cam_id == 4 or cam_id == 'tim':
+        #     rgb_frame = self.rgb4_frame
+        T = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
         cloud_RT_base = self.transform(cloud[:, :3], T)
         return np.concatenate([cloud_RT_base, cloud[:, 3:]], axis=1)
 
+
+    def cloud_preprocess(self, cloud):
+        cloud, rgb_clip = self.getFilteredPointCloud(cloud[:, :3], cloud[:, 3:])
+        pcd = open3d.geometry.PointCloud()
+        pcd.points = open3d.utility.Vector3dVector(cloud)
+        cl, ind = pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=2.0)
+        cloud = np.asarray(cl.points)
+        rgb_clip = rgb_clip[ind]
+        cloud = np.concatenate([cloud, rgb_clip], axis=1)
+        return cloud
+    
+    
     def cloud_preprocess(self, cloud):
         cloud, rgb_clip = self.getFilteredPointCloud(cloud[:, :3], cloud[:, 3:])
         pcd = open3d.geometry.PointCloud()
@@ -385,9 +363,9 @@ class CloudProxy:
         cloud = cloud[0:3, :].T
         return cloud
 
-    def lookupTransform(self, fromFrame, toFrame, lookupTime=rospy.Time(0)):
+    def lookup_transform(self, fromFrame, toFrame, lookupTime=rospy.Time(0)):
         """
-        Lookup a transform in the TF tree.
+        Lookup a transform in the TF tree.for instruction in instructions:
         :param fromFrame: the frame from which the transform is calculated
         :type fromFrame: string
         :param toFrame: the frame to which the transform is calculated
@@ -426,364 +404,57 @@ class CloudProxy:
 
         return result0
     
-    def getFilteredPointCloud(self, cloud, rgb, manual_offset=None):
-
-        # filter ws x
-        x_cond = (cloud[:, 0] < self.center[0] + self.x_half) * (cloud[:, 0] > self.center[0] - self.x_half)
-        cloud = cloud[x_cond]
-        rgb = rgb[x_cond]
-        # filter ws y
-        y_cond = (cloud[:, 1] < self.center[1] + self.y_half) * (cloud[:, 1] > self.center[1] - self.y_half)
-        cloud = cloud[y_cond]
-        rgb = rgb[y_cond]
-        # filter ws z
-        z_cond = (cloud[:, 2] < self.center[2].max()) * (cloud[:, 2] > self.z_min)
-        cloud = cloud[z_cond]
-        rgb = rgb[z_cond]
-
-        if manual_offset is not None:
-            # actually shouldn't do this. We should do cam intrinsic calib
-            cloud[:, 0] += manual_offset[0]
-            cloud[:, 1] += manual_offset[1]
-            cloud[:, 2] += manual_offset[2]
-
-        return cloud, rgb
-    
-    def getFusedPointCloud(self):
-        """
-        get new point cloud, set self.cloud
-        """
-        start_time = time.time()
-        while (self.cloud1 is None or self.cloud2 is None or self.cloud3 is None or self.rgb1 is None or self.rgb2 is None or self.rgb3 is None):
-            rospy.sleep(0.1)
-
-        cloud1, rgb1 = self.getFilteredPointCloud(self.cloud1, self.rgb1)
-        cloud2, rgb2 = self.getFilteredPointCloud(self.cloud2, self.rgb2)
-        cloud3, rgb3 = self.getFilteredPointCloud(self.cloud3, self.rgb3)
-        
-        cloud = np.concatenate((cloud1, cloud2, cloud3))
-        rgb = np.concatenate((rgb1, rgb2, rgb3))
-        
-
-        pcd = open3d.geometry.PointCloud()
-        pcd.points = open3d.utility.Vector3dVector(cloud)
-        cl, ind = pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=2.0)
-        cloud = np.asarray(cl.points)
-        rgb = rgb[ind]
-        
-        # generate 'fake' point cloud for area outside the bins
-        x = np.arange((self.center[0]-self.x_half*2)*1000, (self.center[0]+self.x_half*2)*1000, 2)
-        y = np.arange((self.center[1]-self.y_half*2)*1000, (self.center[1]+self.y_half*2)*1000, 2)
-        xx, yy = np.meshgrid(x, y)
-        xx = xx/1000
-        yy = yy/1000
-        xx = xx.reshape(-1, 1)
-        yy = yy.reshape(-1, 1)
-        pts = np.concatenate([xx, yy, np.ones_like(yy)*(self.z_min)], 1)
-        cloud = np.concatenate([cloud, pts])
-        self.cloud = cloud
-
-        if self.allow_color_cloud:
-            predefined_color = [255,255,255]
-            padding_rgb = np.ones([pts.shape[0], 3]) 
-            rgb = np.concatenate([rgb, padding_rgb])
-            cloud_color = np.concatenate([cloud, rgb], axis=-1)
-            self.cloud_color = cloud_color
-        else:
-            cloud_color = None
-            self.cloud_color = cloud_color
-
-        return cloud1, cloud2, cloud3, cloud, cloud_color
-
-    def getProjectImg(self, target_size, img_size, gripper_pos=(-0.5, 0, 0.1)):
-        """
-        return orthographic projection depth img from self.cloud
-        target_size: img coverage size in meters
-        img_size: img pixel size
-        gripper_pos: the pos of the camera
-        return depth image
-        """
-        if self.cloud is None:
-            self.getNewPointCloud(gripper_pos)
-        cloud = np.copy(self.cloud)
-        cloud = cloud[(cloud[:, 2] < max(gripper_pos[2], self.z_min + 0.05))]
-        view_matrix = transformation.euler_matrix(0, np.pi, 0).dot(np.eye(4))
-        # view_matrix = np.eye(4)
-        view_matrix[:3, 3] = [gripper_pos[0], -gripper_pos[1], gripper_pos[2]]
-        view_matrix = transformation.euler_matrix(0, 0, -np.pi/2).dot(view_matrix)
-        augment = np.ones((1, cloud.shape[0]))
-        pts = np.concatenate((cloud.T, augment), axis=0)
-        projection_matrix = np.array([
-            [1 / (target_size / 2), 0, 0, 0],
-            [0, 1 / (target_size / 2), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-        tran_world_pix = np.matmul(projection_matrix, view_matrix)
-        pts = np.matmul(tran_world_pix, pts)
-        # pts[1] = -pts[1]
-        pts[0] = (pts[0] + 1) * img_size / 2
-        pts[1] = (pts[1] + 1) * img_size / 2
-
-        pts[0] = np.round_(pts[0])
-        pts[1] = np.round_(pts[1])
-        mask = (pts[0] >= 0) * (pts[0] < img_size) * (pts[1] > 0) * (pts[1] < img_size)
-        pts = pts[:, mask]
-        # dense pixel index
-        mix_xy = (pts[1].astype(int) * img_size + pts[0].astype(int))
-        # lexsort point cloud first on dense pixel index, then on z value
-        ind = np.lexsort(np.stack((pts[2], mix_xy)))
-        # bin count the points that belongs to each pixel
-        bincount = np.bincount(mix_xy)
-        # cumulative sum of the bin count. the result indicates the cumulative sum of number of points for all previous pixels
-        cumsum = np.cumsum(bincount)
-        # rolling the cumsum gives the ind of the first point that belongs to each pixel.
-        # because of the lexsort, the first point has the smallest z value
-        cumsum = np.roll(cumsum, 1)
-        cumsum[0] = bincount[0]
-        cumsum[cumsum == np.roll(cumsum, -1)] = 0
-        # pad for unobserved pixels
-        cumsum = np.concatenate((cumsum, -1 * np.ones(img_size * img_size - cumsum.shape[0]))).astype(int)
-
-        depth = pts[2][ind][cumsum]
-        depth[cumsum == 0] = np.nan
-        depth = depth.reshape(img_size, img_size)
-        # fill nans
-        depth = self.interpolate(depth)
-        return depth
-    
-    def getTopDownProjectImg(self, cloud_rgbc, projection_height=1., proj_pos=None):
-        """
-        return orthographic projection depth img from self.cloud
-        target_size: img coverage size in meters
-        img_size: img pixel size
-        gripper_pos: the pos of the camera
-        return depth image
-        """
-        if proj_pos is None:
-            proj_pos = [self.center[0], self.center[1], projection_height]
-        target_size = np.max([self.x_half, self.y_half])*2
-        img_size = np.max([self.img_height, self.img_width])
-
-        
-        cloud = np.copy(cloud_rgbc[:, :3])
-        rgbc = np.copy(cloud_rgbc[:, 3:])
-
-        view_matrix = transformation.euler_matrix(0, np.pi, 0).dot(np.eye(4))
-        view_matrix[:3, 3] = [proj_pos[0], -proj_pos[1], proj_pos[2]]
-        view_matrix = transformation.euler_matrix(0, 0, 0).dot(view_matrix)
-        augment = np.ones((1, cloud.shape[0]))
-        pts = np.concatenate((cloud.T, augment), axis=0)
-        scale = 1.15
-        projection_matrix = np.array([
-            [scale / (target_size / 2), 0, 0, 0],
-            [0, scale / (target_size / 2), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-        tran_world_pix = np.matmul(projection_matrix, view_matrix)
-        pts = np.matmul(tran_world_pix, pts)
-        pts[0] = (pts[0] + 1) * img_size / 2
-        pts[1] = (pts[1] + 1) * img_size / 2
-
-        pts[0] = np.round_(pts[0])
-        pts[1] = np.round_(pts[1])
-        mask = (pts[0] >= 0) * (pts[0] < img_size) * (pts[1] > 0) * (pts[1] < img_size)
-        pts = pts[:, mask]
-        # dense pixel index
-        mix_xy = (pts[1].astype(int) * img_size + pts[0].astype(int))
-        # lexsort point cloud first on dense pixel index, then on z value
-        ind = np.lexsort(np.stack((pts[2], mix_xy)))
-        # bin count the points that belongs to each pixel
-        bincount = np.bincount(mix_xy)
-        # cumulative sum of the bin count. the result indicates the cumulative sum of number of points for all previous pixels
-        cumsum = np.cumsum(bincount)
-        # rolling the cumsum gives the ind of the first point that belongs to each pixel.
-        # because of the lexsort, the first point has the smallest z value
-        cumsum = np.roll(cumsum, 1)
-        cumsum[0] = bincount[0]
-        cumsum[cumsum == np.roll(cumsum, -1)] = 0
-        # pad for unobserved pixels
-        cumsum = np.concatenate((cumsum, -1 * np.ones(img_size * img_size - cumsum.shape[0]))).astype(int)
-
-        depth = pts[2][ind][cumsum]
-        depth[cumsum == 0] = np.nan
-        depth = depth.reshape(img_size, img_size)
-        # fill nans
-        depth = self.interpolate(depth)
-
-        rgbc = rgbc.T
-        rgbc = rgbc[:, mask].T
-        rgbc = rgbc[ind][cumsum]
-        rgb = rgbc[:, :3]
-        clip = rgbc[:, 3:4]
-        rgb[cumsum == 0] = np.array(self.rgb_value)
-        clip[cumsum == 0] = np.nan
-        rgbc = np.concatenate([rgb, clip], axis=-1)
-        rgbc = rgbc.reshape(img_size, img_size, 4)
-        clip = self.interpolate(rgbc[..., 3])
-        rgbc = np.concatenate([rgbc[..., :3], clip[..., None]], axis=2)
-
-
-        img_left, img_right =  np.array([-self.img_width//2, self.img_width//2]) + img_size//2
-        img_top, img_down =  np.array([-self.img_height//2, self.img_height//2]) + img_size//2
-        depth = depth[img_top:img_down, img_left:img_right]
-        rgbc = rgbc[img_top:img_down, img_left:img_right]
-        return depth, rgbc
-    
-    def _preProcessObs(self, obs, kernel_size=5):
-        obs = scipy.ndimage.median_filter(obs, kernel_size)
-        return obs
-
-    def _preProcessRGBC(self, obs, kernel_size=3):
-        # obs = obs[..., :3]
-        if len(obs.shape) == 2:
-            obs = obs.reshape(obs.shape[0], obs.shape[1], 1)
-        obss = []
-        for channel in range(obs.shape[-1]):
-            a = scipy.ndimage.median_filter(obs[..., channel], kernel_size)
-            obss.append(a)
-        obs = np.stack(obss).transpose(1,2,0)
-        return obs
-    
-    def getHeightmapReconstruct(self, cloud_rgbc, separate_cloud=None):
-        # get img from camera
-        depth, rgbc = self.getTopDownProjectImg(cloud_rgbc)
-        
-        depth = self._preProcessObs(depth)
-        rgb = cv2.bilateralFilter(rgbc[...,:3].astype(np.uint8), 15, 40, 40)
-
-        clip_feature = rgbc[..., 3:4]
-        clip_feature = (clip_feature - clip_feature.min()) / (clip_feature.max() - clip_feature.min())
-        rgbc = np.concatenate([rgb, clip_feature], axis=2)
-
-        if separate_cloud is not None:
-            clip_feature = []
-            for cloud in separate_cloud:
-                _, rgbc_tmp = self.getTopDownProjectImg(cloud)
-                clip_feature.append(rgbc_tmp[..., 3])
-            clip_feature = np.stack(clip_feature).mean(0)
-            clip_feature = (clip_feature - clip_feature.min()) / (clip_feature.max() - clip_feature.min())
-            rgbc_average =  np.concatenate([rgb, clip_feature[..., None]], axis=2)
-        else:
-            rgbc_average = None
-        return depth, rgbc, rgbc_average
-    
-    def getClipObs(self, instruction, parsing=False, task_name=None):
-        def parse_instruction(instruction):
-
-            if instruction.count(' and ') == 2:
-                # temp solution for pyramid in multitask training
-
-                pick, place = instruction.split(' on ')
-                pick = " ".join(pick.split(' ')[1:-2])
-                place = " ".join(place.split(' ')[:])
-
-            # if "pyramid" in task_name:
-            #     pick, place = instruction.split(' on ')
-            #     pick = " ".join(pick.split(' ')[1:-2])
-            #     place = " ".join(place.split(' ')[:])
-            else:
-                pick, place = instruction.split(' and ')
-                pick = " ".join(pick.split(' ')[1:])
-                place = " ".join(place.split(' ')[2:])
-
-            return pick, place
-        if parsing:
-            
-            pick, place = parse_instruction(instruction)
-            print(f"pick:{pick}, place:{place}")
-
-            cloud, cloud1, cloud2, cloud3 = self.get_fused_clip_cloud(pick)
-            depth, _, rgbc_average = self.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
-            clip_feature_pick = rgbc_average[..., 3]
-            rgbc_average = self._preProcessRGBC(rgbc_average)
-            
-
-            cloud, cloud1, cloud2, cloud3 = self.get_fused_clip_cloud(place)
-            depth, _, rgbc_average = self.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
-            clip_feature_place = rgbc_average[..., 3]
-            rgbc_average = self._preProcessRGBC(rgbc_average)
-            
-
-            rgb = rgbc_average[..., :3]
-        else:
-            pick, place = parse_instruction(instruction)
-            cloud, cloud1, cloud2, cloud3 = self.get_fused_clip_cloud(instruction)
-            depth, rgbc, rgbc_average = self.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
-            rgbc_average = self._preProcessRGBC(rgbc_average)
-            clip_feature = rgbc_average[..., 3]
-            rgb = rgbc_average[..., :3]
-            clip_feature_pick = clip_feature
-            clip_feature_place = clip_feature
-        return depth, rgb, clip_feature_pick, clip_feature_place
-
-    def getCamIntrinsic(self, cam_id):
-        if cam_id == 1:
+    def get_cam_intrinsic(self, cam_id):
+        if cam_id == 1 or cam_id == 'bob':
             while self.info1 is None:
                 rospy.sleep(0.01)
             intrinsics = self.info1
-        if cam_id == 2:
+        if cam_id == 2 or cam_id == 'kevin':
             while self.info2 is None:
                 rospy.sleep(0.01)
             intrinsics = self.info2
-        if cam_id == 3:
+        if cam_id == 3 or cam_id == 'stuart':
             while self.info3 is None:
                 rospy.sleep(0.01)
             intrinsics = self.info3
+        if cam_id == 4 or cam_id == 'tim':
+            while self.info4 is None:
+                rospy.sleep(0.01)
+            intrinsics = self.info4
         return intrinsics
 
-    def getCamExtrinsic(self, cam_id):
-        if cam_id == 1:
+    def get_cam_extrinsic(self, cam_id):
+        if cam_id == 1 or cam_id == 'bob':
             rgb_frame = self.rgb1_frame
-            extrinsic = self.lookupTransform(rgb_frame, self.base_frame, rospy.Time(0))
-        if cam_id == 2:
+            extrinsic = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
+        if cam_id == 2 or cam_id == 'kevin':
             rgb_frame = self.rgb2_frame
-            extrinsic = self.lookupTransform(rgb_frame, self.base_frame, rospy.Time(0))
-        if cam_id == 3:
+            extrinsic = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
+        if cam_id == 3 or cam_id == 'stuart':
             rgb_frame = self.rgb3_frame
-            extrinsic = self.lookupTransform(rgb_frame, self.base_frame, rospy.Time(0))
+            extrinsic = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
+        if cam_id == 4 or cam_id == 'tim':
+            rgb_frame = self.rgb4_frame
+            extrinsic = self.lookup_transform(rgb_frame, self.base_frame, rospy.Time(0))
         return extrinsic
+    
+    def get_all_cam_extrinsic(self):
+        extrinsics = {}
+        for cam_id in self.cam_names:
+            extrinsics[cam_id] = self.get_cam_extrinsic(cam_id)
+        return extrinsics
+    
+    def get_all_cam_intrinsic(self):
+        intrinsics = {}
+        for cam_id in self.cam_names:
+            intrinsics[cam_id] = self.get_cam_intrinsic(cam_id)
+        return intrinsics
         
-
-    def get_multi_obs(self):
-        self.clear_cache()
-        depth = self.getDepthImage(1)
-        rgb = self.getRGBImage(1)
-        rgbd1 = np.concatenate([rgb, depth[..., None]], axis=-1)
-        intrinsic1 = self.getCamIntrinsic(1)
-        extrinsic1 = self.getCamExtrinsic(1)
-
-        depth = self.getDepthImage(2)
-        rgb = self.getRGBImage(2)
-        rgbd2 = np.concatenate([rgb, depth[..., None]], axis=-1)
-        intrinsic2 = self.getCamIntrinsic(2)
-        extrinsic2 = self.getCamExtrinsic(2)
-
-        depth = self.getDepthImage(3)
-        rgb = self.getRGBImage(3)
-        rgbd3 = np.concatenate([rgb, depth[..., None]], axis=-1)
-        intrinsic3 = self.getCamIntrinsic(3)
-        extrinsic3 = self.getCamExtrinsic(3)
-        return rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3
-
-    def getObs(self, instruction, block_clip_processor=False, task_name=None):
-        if not block_clip_processor:
-            _, _, clip_feature_pick, clip_feature_place = self.getClipObs(instruction, parsing=True, task_name=task_name)
-        else:
-            clip_feature_pick, clip_feature_place = None, None
-
-        depth = np.rot90(self.getDepthImage(2)[190:480, 515:725], 2)
-        rgb = np.rot90(self.getRGBImage(2)[190:480, 515:725], 2)
-        depth = skimage.transform.resize(depth, (self.img_height, self.img_width))
-        rgb = skimage.transform.resize(rgb.astype(float), (self.img_height, self.img_width, 3))
-        
-        return np.clip(self.table_to_topdown_height-depth, 0, 0.3), rgb, clip_feature_pick, clip_feature_place
-
 
 def main():
     rospy.init_node('test')
     cloud_proxy = CloudProxy()
+    cloud_proxy.get_cam_extrinsic('bob')
     instructions = ['cup', 'hammer', 'cube']
     for instruction in instructions:
         cloud_proxy.cloud = None
@@ -794,9 +465,10 @@ def main():
         clip_cloud = (clip_cloud - clip_cloud.min()) / (clip_cloud.max() - clip_cloud.min())
         pcd.colors = open3d.utility.Vector3dVector(cloud1[:, 3:6] / 255 * 0.5 + clip_cloud)
         open3d.visualization.draw_geometries([pcd])
-        depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
-        depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud2)
-        rgbc = cloud_proxy._preProcessRGBC(rgbc)
+    #     depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud, [cloud1, cloud2, cloud3])
+    #     depth, rgbc, rgbc_average = cloud_proxy.getHeightmapReconstruct(cloud2)
+    #     rgbc = cloud_proxy._preProcessRGBC(rgbc)
+    cloud_proxy.get_pointcloud_from_depth(1, 'cube')
 
 
 

@@ -130,7 +130,7 @@ if __name__ == '__main__':
             pose0 = np.concatenate((xyz, env.ur5.joint_values.copy()))
 
 
-            xyz0_wrt_base,quat0_wrt_base = tf_listener.lookupTransform('/base_link', '/tool0_controller', rospy.Time(0))
+            xyz0_wrt_base,quat0_wrt_base = tf_listener.lookup_transform('/base_link', '/tool0_controller', rospy.Time(0))
             print(f'grasping pose is at {pose0}')
             print(f'grasping pose with respect to base is at {xyz0_wrt_base,quat0_wrt_base}')
 
@@ -156,7 +156,7 @@ if __name__ == '__main__':
             quat1 = env.ur5.tool_quat.copy()
             pose1 = np.concatenate((xyz, env.ur5.joint_values.copy()))
 
-            xyz1_wrt_base,quat1_wrt_base = tf_listener.lookupTransform('/base_link', '/tool0_controller', rospy.Time(0))
+            xyz1_wrt_base,quat1_wrt_base = tf_listener.lookup_transform('/base_link', '/tool0_controller', rospy.Time(0))
             print(f'grasping pose is at {pose1}')
             print(f'grasping pose with respect to base is at {xyz1_wrt_base,quat1_wrt_base}')
 

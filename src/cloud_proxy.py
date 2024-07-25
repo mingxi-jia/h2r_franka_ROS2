@@ -19,12 +19,12 @@ class CloudProxy:
         # self.topic = '/camera/depth/points'
         # self.topic = '/kinect2/hd/points'
         self.topic = '/depth_to_rgb/points'
-        self.sub = rospy.Subscriber(self.topic, PointCloud2, self.callbackCloud, queue_size=1)
+        self.sub = rospy.Subscriber(self.topic, PointCloud2, self.call_back_cloud, queue_size=1)
         self.msg = None
         self.image = None
         self.has_cloud = False
 
-    def callbackCloud(self, msg):
+    def call_back_cloud(self, msg):
         if not self.has_cloud:
             self.msg = msg
             self.has_cloud = True

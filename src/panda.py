@@ -5,11 +5,12 @@ import sys
 from geometry_msgs.msg import Pose, PoseStamped
 import tf.transformations
 
+BASE_OFFSET = 0.1
+CAMERA_OFFSET = -0.12
+
 class PandaArmControl:
     def __init__(self):
-        moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node('move_group_python_interface', anonymous=True)
-        
+
         self.robot = moveit_commander.RobotCommander()
         self.scene = moveit_commander.PlanningSceneInterface()
         self.init_scene()
@@ -26,7 +27,7 @@ class PandaArmControl:
         table_pose.pose.position.y = 0.
         table_pose.pose.position.z = -0.11
         table_pose.pose.orientation.w = 1.0
-        self.scene.add_box(table_name, table_pose, size=(1.8, 1.8, 0.2))
+        self.scene.add_box(table_name, table_pose, size=(1.8, 1.8, 0.2169))
 
         pole2_pose = PoseStamped()
         pole2_name = "pole_for_kevin"
@@ -64,10 +65,28 @@ class PandaArmControl:
         pole4_pose.pose.orientation.w = 1.0
         self.scene.add_box(pole4_name, pole4_pose, size=(0.06, 0.06, 1.02))
         
-    def move_to_pose(self, x, y, z, rx, ry, rz):
+    def move_gripper_to_pose(self, x, y, z, rx, ry, rz):
         pose_target = Pose()
-        pose_target.position.x = x
-        pose_target.position.y = y
+        pose_target.position.x = y
+        pose_target.position.y = x
+        pose_target.position.z = z + BASE_OFFSET
+        
+        quaternion = self.quaternion_from_euler(rx, ry, rz)
+        pose_target.orientation.x = quaternion[0]
+        pose_target.orientation.y = quaternion[1]
+        pose_target.orientation.z = quaternion[2]
+        pose_target.orientation.w = quaternion[3]
+        
+        self.move_group.set_pose_target(pose_target)
+        plan = self.move_group.go(wait=True)
+        
+        self.move_group.stop()
+        self.move_group.clear_pose_targets()
+    
+    def move_camera_to_pose(self, x, y, z, rx, ry, rz):
+        pose_target = Pose()
+        pose_target.position.x = y + CAMERA_OFFSET
+        pose_target.position.y = x
         pose_target.position.z = z
         
         quaternion = self.quaternion_from_euler(rx, ry, rz)
@@ -86,5 +105,10 @@ class PandaArmControl:
         return tf.transformations.quaternion_from_euler(roll, pitch, yaw)
 
 if __name__ == "__main__":
+
+    moveit_commander.roscpp_initialize(sys.argv)
+    rospy.init_node('move_group_python_interface', anonymous=True)
     panda_arm = PandaArmControl()
-    panda_arm.move_to_pose(0.4, 0.1, 0.4, 3.14, 0, 0)  # Example target pose
+    panda_arm.move_gripper_to_pose(0.1, 0.2, 0.5, 3.14, 0, -0.8) # home position
+    # panda_arm.move_gripper_to_pose(0.4, 0.1, 0.3, 3.14, 0, 2.4)  # Example target pose
+    # panda_arm.move_gripper_to_pose(0.6, -0.1, 0.007, 3.14, 0, 2.4)
