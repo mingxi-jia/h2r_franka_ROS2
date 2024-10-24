@@ -13,7 +13,7 @@ import pickle
 
 from src.envs.env import Env
 import src.simulator.utils as utils
-import utils.demo_util_pp as demo_util
+import panda_utils.demo_util_pp as demo_util
 import sys
 
 

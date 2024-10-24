@@ -31,10 +31,10 @@ sys.path.append('..')
 # from agents.hierarchy.dqn_3l_6d import DQN3L6DMaxShared
 # from agents.hierarchy.dqn_5l import DQN5LMaxShared
 
-from src.utils.parameters_x import *
+from src.panda_utils.parameters_x import *
 
-from src.utils import torch_utils
-from src.utils.torch_utils import rand_perlin_2d
+from src.panda_utils import torch_utils
+from src.panda_utils.torch_utils import rand_perlin_2d
 
 import rospy
 from src.envs.env import Env

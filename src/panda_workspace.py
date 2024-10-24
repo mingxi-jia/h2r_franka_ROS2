@@ -1,40 +1,44 @@
 import time
 
 import rospy
-from sensor_msgs.msg import Image, CameraInfo
-from sensor_msgs import point_cloud2
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Image
 import ros_numpy
-import tf2_ros
 import tf
+import math
+import torch.nn.functional as F
 
 import torch
-from sklearn.impute import SimpleImputer
-from skimage.restoration import inpaint
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import cv2
-from cv_bridge import CvBridge
+from PIL import Image
+import torchvision.transforms as T
+from scipy.spatial.transform import Rotation as R
+import json
+import open3d as o3d
+from f3rm.features.clip import clip
 
-import skimage.transform
-from skimage.transform import rotate
 import open3d
 import sys
 import os
 currect_path = "/"+os.path.join(*os.path.abspath(__file__).split("/")[:-2])
-sys.path.append(os.path.join(currect_path, "src"))
-sys.path.append(currect_path)
-from utils import demo_util_pp, transformation
-import sys
-sys.path.append("/home/master_oogway/panda_ws/src/GEM2.0")
+from panda_utils import transformation
+sys.path.append("/home/master_oogway/panda_ws/code/GEM2.0")
+from lepp.clip_dino_seg import clip_dino_seg
 from lepp.clip_preprocess import CLIP_processor
+from f3rm_robot.load import load_nerfstudio_outputs
 from cloud_proxy_three import CloudProxy
 from panda import PandaArmControl
-# import scipy
 
 KEVIN_WS_BOUNDS = [86, 472, 318, 602] # [top, bottom, left, right]
 KEVIN_HEIGHT_OFFSET = -1.05271 # plusing offset always means realworld to object space
+DIST_ABOVE_TARGET = 0.12
+RADIUS_AROUND_TARGET = 0.16
+REAL_WORLD_WS_BOUNDS = [0.22, 0.7, -0.31, 0.28]
+# PHIS = [np.pi/3, np.pi/5, np.pi/8]
+PHIS = [np.pi/6]
+GRIPPER_PIXELS = 100
 
 class PandaWorkspace:
     def __init__(self, clip_processor=None, kernel_sizes=[40, 90, 140], stride=10, real_robot=True):
@@ -47,8 +51,8 @@ class PandaWorkspace:
             self.intrinsics = np.load(os.path.join(currect_path,"parameters/intrinsics.npy"), allow_pickle=True).item()
             self.extrinsics = np.load(os.path.join(currect_path,"parameters/extrinsics.npy"), allow_pickle=True).item()
         # RT base_link
-        self.workspace = np.array([[0.28, 0.71],
-                                    [-0.32, 0.26],
+        self.workspace = np.array([REAL_WORLD_WS_BOUNDS[:2],
+                                    REAL_WORLD_WS_BOUNDS[2:],
                                     [-0.05, 1.0]])
         self.center = self.workspace.mean(-1)
         self.x_size = self.workspace[0].max() - self.workspace[0].min()
@@ -64,6 +68,7 @@ class PandaWorkspace:
             self.clip_processor = clip_processor
         self.kernel_sizes = kernel_sizes
         self.stride = stride
+        self.clip_model, self.clip_preprocess = clip.load("ViT-L/14@336px", device='cuda')
 
         self.img_width = 284
         self.img_height = 386
@@ -76,12 +81,19 @@ class PandaWorkspace:
 
         self.panda_arm = PandaArmControl()
 
-    def get_intrinsics(self, camera_id):
+    def get_intrinsic(self, camera_id):
         if self.cloud_proxy is None:
-            intrinsics = self.intrinsics[camera_id]
+            intrinsic = self.intrinsics[camera_id]
         else:
-            self.cloud_proxy.get_cam_intrinsic(camera_id)
-        return intrinsics
+            intrinsic = self.cloud_proxy.get_cam_intrinsic(camera_id)
+        return intrinsic
+    
+    def get_extrinsic(self, camera_id):
+        if self.cloud_proxy is None:
+            extrinsic = self.extrinsics[camera_id]
+        else:
+            extrinsic = self.cloud_proxy.get_cam_extrinsic(camera_id)
+        return extrinsic
 
     def get_pointcloud_from_depth(self, rgb, depth, intrinsics, instruction, visualize=False):
         kernel_sizes = self.kernel_sizes
@@ -92,7 +104,7 @@ class PandaWorkspace:
             threshold_value = np.sort(feature.flatten())[-8000 - 50 * (200 - size)]
             feature[feature < threshold_value] = 0
 
-            clip_feature += feature
+            clip_feature += feature * (140.0 / size)
             
         height, width = depth.shape
         xlin = np.linspace(0, width - 1, width)
@@ -525,12 +537,51 @@ class PandaWorkspace:
         extrinsic3 = self.getCamExtrinsic(3)
         return rgbd1, rgbd2, rgbd3, intrinsic1, intrinsic2, intrinsic3, extrinsic1, extrinsic2, extrinsic3
     
-    def idx_to_pos(self, shape, x, y):
-        x = 0.6 * x / shape[0] - 0.31
-        y = 0.77 - 0.45 * y / shape[1]
+    def td_image_idx_to_pos(self, shape, x, y):
+        y0, y1, x0, x1 = REAL_WORLD_WS_BOUNDS
+        x = x0 + (x1 - x0) * x / shape[0]
+        y = y1 + (y0 - y1) * y / shape[1]
         return x, y
     
-    def get_close_look(self, instruction):
+    def uv_to_pos(self, u, v, depth, camera_id):
+        """
+        Calculate the real-world coordinates of a pixel given the intrinsic matrix,
+        extrinsic matrix, and depth.
+        
+        Parameters:
+        K (np.array): Intrinsic matrix (3x3).
+        extrinsic_matrix (np.array): Extrinsic matrix (4x4).
+        pixel_coords (tuple): Pixel coordinates (u, v).
+        depth (float): Depth value at the pixel.
+        
+        Returns:
+        np.array: World coordinates (X, Y, Z).
+        """
+
+        # Extrinsic matrix
+        extrinsic_matrix = self.get_extrinsic(camera_id)
+
+        # Intrinsic matrix
+        K = self.get_intrinsic(camera_id)
+        K_inv = np.linalg.inv(K)
+        
+        # Camera coordinates (homogeneous)
+        pixel_vector = np.array([v, u, 1])
+        camera_coords = depth * K_inv.dot(pixel_vector)
+        
+        # Convert to homogeneous coordinates
+        camera_coords_homogeneous = np.append(camera_coords, 1)
+        
+        # Transform to world coordinates using the extrinsic matrix
+        world_coords_homogeneous = extrinsic_matrix @ camera_coords_homogeneous
+        
+        # Convert from homogeneous to Cartesian coordinates
+        world_coords = world_coords_homogeneous[:3] / world_coords_homogeneous[3]
+        
+        return world_coords
+    
+    def get_target_position(self, instruction):
+
         # get images and depths from the cameras
         now = time.time()
         top, bottom, left, right = KEVIN_WS_BOUNDS
@@ -550,50 +601,323 @@ class PandaWorkspace:
         fused_cloud = np.concatenate([bob_cloud, kevin_cloud, stuart_cloud], axis=0)
         fused_cloud = self.pad_bottom_cloud(fused_cloud, rgb_value=[27, 40, 40])
         feature_map = self.get_topdown_clip_from_multi([bob_cloud, kevin_cloud, stuart_cloud], self.extrinsics['kevin'][2, -1])
+
+        # visualizatino of the feature generated
         # topdown_rgb = np.array(kevin_image)[86:472, 318:602]/255.
         # plt.imshow(topdown_rgb * 0.5 + feature_map[...,None])
 
         # get approximate position of the object
         x0, y0 = np.unravel_index(np.argmax(feature_map), feature_map.shape)
-        x, y = self.idx_to_pos(feature_map.shape, x0, y0)
+        x, y = self.td_image_idx_to_pos(feature_map.shape, x0, y0)
 
         print('feature generation time taken:', time.time() - now)
 
         kevin_target_depths = kevin_depth[top:bottom, left:right][x0-30:x0+30, y0-30:y0+30]
         kevin_target_depth = np.sort(kevin_target_depths.flatten())[:100].mean()
+        target_height = - kevin_target_depth - KEVIN_HEIGHT_OFFSET + DIST_ABOVE_TARGET
 
-        target_height = - kevin_target_depth - KEVIN_HEIGHT_OFFSET + 0.2
-
+        return x, y, target_height
+    
+    def get_close_look(self, x, y, z):
 
         # move the robot to the approximate position of the object
-        self.panda_arm.move_camera_to_pose(x, y, 0.5, 3.14, 0, -0.8)
+        self.panda_arm.move_camera_to_pose(y, x, 0.6, np.pi, 0, np.pi/2)
 
         # in case of extreme noise
-        if target_height < 0.107 or target_height > 1.0:
-            target_height = 0.5
+        if z < 0.107 or z > 0.8:
+            z = 0.5
         
-        self.panda_arm.move_camera_to_pose(x, y, target_height, 3.14, 0, -0.8)
+        step = (z - 0.6) / 3
+        for i in range(4):
+            self.panda_arm.move_camera_to_pose(y, x, 0.6 + step * i, np.pi, 0, np.pi/2)
+
+        rospy.sleep(1)
 
         return self.cloud_proxy.get_rgb_image('tim')
     
-    def go_home(self):
-        self.panda_arm.move_gripper_to_pose(0.1, 0.2, 0.6, 3.14, 0, -0.8)
+    def circle_target_and_capture_images(self, x, y, z, r, n, path):
+        idx = 0
+        self.panda_arm.add_safe_guard()
+        images = []
+        depths = []
+        poses = []
+        for i in range(n):
+            theta = (2 * math.pi / n) * i
 
+            for phi in PHIS:
+                x_offset = r * math.cos(theta) * math.cos(phi)
+                cam_x = x + x_offset
+                y_offset = r * math.sin(theta) * math.cos(phi)
+                cam_y = y + y_offset
+                z_offset = r * math.sin(phi)
+                cam_z = z + z_offset
+
+                # Calculate orientation to face the target
+                direction = np.array([x - cam_x, y - cam_y, z - cam_z])
+                direction = direction / np.linalg.norm(direction)  # normalize the direction vector
+                up = np.array([0, 0, -1])
+                right = np.cross(up, direction)
+                right = right / np.linalg.norm(right)
+                up = np.cross(direction, right)
+                rotation_matrix = np.column_stack((right, up, direction))
+                rotation = R.from_matrix(rotation_matrix).as_euler('xyz')
+                try:
+                    # if phi == np.pi/4:
+                    #     self.panda_arm.move_camera_to_pose(cam_x, cam_y, 0.4, np.pi, 0, rotation[2])
+                    self.panda_arm.move_camera_to_pose(cam_x, cam_y, cam_z, rotation[0], rotation[1], rotation[2])
+                except TimeoutError:
+                    continue
+                # Capture image with 'tim' camera
+                image = Image.fromarray(self.cloud_proxy.get_rgb_image('tim')[GRIPPER_PIXELS:, :, :])
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                img_path = f'{path}/frame_{idx}.png'
+                image.save(img_path)
+                images.append(image)
+                depths.append(self.cloud_proxy.get_depth_image('tim')[GRIPPER_PIXELS:, :])
+                poses.append(self.get_extrinsic('tim'))
+                idx += 1
+        tim_extrinsic = self.cloud_proxy.get_cam_extrinsic('tim').tolist()
+        d = {'extrinsic': tim_extrinsic}
+        json.dump(d, open(f'{path}/tim_extrinsic.json', 'w'), indent=4)
+        self.panda_arm.remove_safe_guard()
+        return images, depths, poses
+
+    def sample_clip_features(self, feature_field, grid_resolution, bounding_box, encoded_instruction, device='cuda'):
+        """
+        Sample the NeRF model over a 3D grid and create a voxel grid based on similarity to the encoded instruction.
         
+        Args:
+            nerf_model: The trained NeRF model.
+            grid_resolution: The resolution of the 3D voxel grid (number of voxels along each dimension).
+            bounding_box: A tuple ((xmin, ymin, zmin), (xmax, ymax, zmax)) defining the 3D space to sample.
+            encoded_instruction: The encoded feature vector of the language instruction.
+            viewer_utils: The ViewerUtils instance.
+            device: The device to perform computations on.
+            
+        Returns:
+            voxel_grid: A 3D numpy array representing the voxel grid based on similarity to the encoded instruction.
+        """
+        # Create a 3D grid of points
+        x = np.linspace(bounding_box[0][0], bounding_box[1][0], grid_resolution)
+        y = np.linspace(bounding_box[0][1], bounding_box[1][1], grid_resolution)
+        z = np.linspace(bounding_box[0][2], bounding_box[1][2], grid_resolution)
+        grid = np.stack(np.meshgrid(x, y, z), -1).reshape(-1, 3)
+        
+        # Convert the grid to a torch tensor
+        grid_tensor = torch.tensor(grid, dtype=torch.float32).to(device)
+        
+        # Sample the NeRF model at the grid points
+        clip_dict = feature_field(grid_tensor)
+        clip_features = clip_dict['feature']
+        density = clip_dict['density']
+        
+        # Normalize the CLIP features
+        clip_features = clip_features / clip_features.norm(dim=-1, keepdim=True)
+        
+        # Compute similarity with the encoded instruction
+        similarity = (clip_features @ encoded_instruction.T).squeeze(-1)
+        
+        # Reshape the similarity scores to the grid resolution
+        similarity = similarity.view(grid_resolution, grid_resolution, grid_resolution)
+        
+        # Apply a threshold to the similarity scores to create the voxel grid
+        threshold1 = 0.0  # Adjust this threshold as needed
+        threshold2 = 8
+        density = torch.reshape(density, similarity.shape)
+        voxel_grid = ((density > threshold2) * (similarity > threshold1)).cpu().detach().numpy()
+        
+        return voxel_grid
 
+    def get_3d_mask(self, config_path, nerf_to_local, instruction, bounding_box):
+        load_state = load_nerfstudio_outputs(config_path)
+
+        # Get features and density for each demo from feature field
+        feature_field = load_state.feature_field_adapter()
+        text = clip.tokenize(instruction).cuda()
+        encoded_instruction = self.clip_model.encode_text(text=text)
+        encoded_instruction /= encoded_instruction.norm(dim=-1, keepdim=True)
+        bounding_box_nerf = (bounding_box[0] @ nerf_to_local.T[:3][:3], bounding_box[1] @ nerf_to_local.T[:3][:3])
+        features_in_nerf = self.sample_clip_features(feature_field, 128, bounding_box_nerf, encoded_instruction)
+        ## TODO: bug with transformation, and question about resolution
+        # features_in_local = features_in_nerf @ nerf_to_local
+
+        return features_in_nerf
+    
+    def reconstruct_point_clouds(self, depths, masks, camera_poses):
+        """
+        Reconstructs two 3D point clouds from depth maps, masks, and camera poses.
+
+        Parameters:
+            depths (list of np.array): List of depth maps (H, W) for each frame.
+            masks (list of np.array): List of masks (H, W) for each frame.
+            camera_poses (list of np.array): List of camera poses (4x4) for each frame.
+            intrinsics (np.array): Camera intrinsic matrix (3x3).
+
+        Returns:
+            full_point_cloud (np.array): 3D point cloud of all points seen by the camera (N, 3).
+            masked_point_cloud (np.array): 3D point cloud of points shown by the mask (M, 3).
+        """
+        full_point_cloud = []
+        masked_point_cloud = []
+        intrinsics = self.get_intrinsic('tim')
+
+        fx, fy = intrinsics[0, 0], intrinsics[1, 1]
+        cx, cy = intrinsics[0, 2], intrinsics[1, 2]
+
+        for depth, mask, pose in zip(depths, masks, camera_poses):
+            H, W = depth.shape
+            i, j = np.meshgrid(np.arange(W), np.arange(H), indexing='xy')
+
+            # Convert depth map to 3D points in camera space
+            z = depth
+            x = (i - cx) * z / fx
+            y = (j - cy) * z / fy
+
+            points_camera_space = np.stack((x, y, z), axis=-1).reshape(-1, 3)
+
+            # Transform points to world space
+            points_camera_space_homogeneous = np.concatenate([points_camera_space, np.ones((points_camera_space.shape[0], 1))], axis=-1)
+            points_world_space = (pose @ points_camera_space_homogeneous.T).T[:, :3]
+
+            # Add all points to the full point cloud
+            full_point_cloud.append(points_world_space)
+
+            # Add masked points to the masked point cloud
+            mask_flatten = mask.flatten()
+            masked_points_world_space = points_world_space[mask_flatten > 0]
+            masked_point_cloud.append(masked_points_world_space)
+
+        # Combine all points into a single point cloud
+        full_point_cloud = np.concatenate(full_point_cloud, axis=0)
+        masked_point_cloud = np.concatenate(masked_point_cloud, axis=0)
+
+        return full_point_cloud, masked_point_cloud
+    
+    def visualize_point_clouds(self, full_point_cloud, masked_point_cloud):
+        """
+        Visualizes two 3D point clouds using Open3D.
+
+        Parameters:
+            full_point_cloud (np.array): 3D point cloud of all points (N, 3).
+            masked_point_cloud (np.array): 3D point cloud of masked points (M, 3).
+        """
+
+        # Convert full point cloud to Open3D format
+        full_pc = o3d.geometry.PointCloud()
+        full_pc.points = o3d.utility.Vector3dVector(full_point_cloud)
+        full_pc.paint_uniform_color([0, 0.651, 0.929])  # Light blue color
+
+        # Convert masked point cloud to Open3D format
+        masked_pc = o3d.geometry.PointCloud()
+        masked_pc.points = o3d.utility.Vector3dVector(masked_point_cloud)
+        masked_pc.paint_uniform_color([1, 0.706, 0])  # Orange color
+
+        # Visualize the point clouds
+        o3d.visualization.draw_geometries([full_pc, masked_pc])
+    
 
 def main():
     rospy.init_node('panda_ws')
     panda_ws = PandaWorkspace()
-    panda_ws.go_home()
+    # panda_ws.panda_arm.go_home()
+    # panda_ws.panda_arm.move_gripper_width(0.1)
 
-    instruction = 'rubber duck'
-    close_look_image = panda_ws.get_close_look(instruction)
-    image = Image.fromarray(close_look_image)
-    image.save(f'/home/master_oogway/panda_ws/src/GEM2.0/data/close_up/{instruction}.png')
-    plt.imshow(close_look_image)
-    panda_ws.go_home()
+    instruction = 'teal_cube'
 
+    x, y, z = panda_ws.get_target_position(instruction)
+
+    #####################################################################################################
+    ####### to get topdown semenatic map
+
+    # close_look_image_array = panda_ws.get_close_look(x, y, z)
+
+    
+    # close_look_image = Image.fromarray(close_look_image_array)
+    # close_look_image.save(f'/home/master_oogway/panda_ws/code/GEM2.0/data/close_up/{instruction}.png')
+    # mask = clip_dino_seg(close_look_image, instruction)
+
+    # padding_size = (KEVIN_WS_BOUNDS[1] - KEVIN_WS_BOUNDS[0] - KEVIN_WS_BOUNDS[3] + KEVIN_WS_BOUNDS[2]) // 2
+    
+    # mask_image = Image.fromarray(np.array(mask.detach().cpu()))
+
+    # transform = T.Compose([
+    #     T.Resize((KEVIN_WS_BOUNDS[3] - KEVIN_WS_BOUNDS[2], KEVIN_WS_BOUNDS[3] - KEVIN_WS_BOUNDS[2])),
+    #     T.Pad(padding=(padding_size, 0, padding_size, 0)),
+    # ])
+    # mask_image = transform(mask_image)
+    # mask_image.save(f'/home/master_oogway/panda_ws/code/GEM2.0/data/close_up/{instruction}_mask.png')
+
+    # import matplotlib.pyplot as plt
+    # plt.imshow(close_look_image)
+    # plt.show(block=False)
+
+    # u, v = input('Enter the pixel coordinates of the object: input format "u,v"').split(',')
+    # grasping_point = panda_ws.uv_to_pos(int(u), int(v), DIST_ABOVE_TARGET, 'tim')
+    # panda_ws.panda_arm.move_gripper_to_pose(grasping_point[0], grasping_point[1], 0.2, 3.14, 0, -0.8)
+    # panda_ws.panda_arm.move_gripper_to_pose(grasping_point[0], grasping_point[1], 0.04, 3.14, 0, -0.8)
+    # panda_ws.panda_arm.move_gripper_width(0) 
+    #####################################################################################################
+    #####################################################################################################
+    ## to get the nerf images or gsplat images
+
+    # n = 10
+    # nerf_path = f'/home/master_oogway/panda_ws/code/GEM2.0/data/nerf/{instruction}'
+    # splat_path = f'/home/master_oogway/panda_ws/code/InstantSplat/data/custom/{instruction}/{n}_views/images'
+    # panda_ws.circle_target_and_capture_images(y, x, z/3., RADIUS_AROUND_TARGET, n, nerf_path)
+    # cam_in_world = json.load(open(f'{nerf_path}/tim_extrinsic.json', 'r'))['extrinsic']
+    # cam_in_world = np.array(cam_in_world)
+    # cam_in_nerf = json.load(open(f'/home/master_oogway/panda_ws/code/GEM2.0/data/nerf/{instruction}/transforms.json', 'r'))['frames'][0]['transform_matrix']
+    # cam_in_nerf = np.array(cam_in_nerf)
+    # nerf_to_world = np.dot(cam_in_world, np.linalg.inv(cam_in_nerf))
+    # world_to_local = np.array([
+    #                     [1, 0, 0, -x],
+    #                     [0, 1, 0, -y],
+    #                     [0, 0, 1, 0],
+    #                     [0, 0, 0, 1]
+    #                 ])
+    # nerf_to_local = np.dot(world_to_local, nerf_to_world)
+
+    # # ATTENTION: it is called nerf to world, but it is actually nerf to local
+
+    # json.dump({'nerf_to_world': nerf_to_local.tolist()}, open(f'/home/master_oogway/panda_ws/code/GEM2.0/data/nerf/{instruction}/nerf_to_world.json', 'w'), indent=4)
+    #####################################################################################################
+    #####################################################################################################
+    # ## to get the clip features
+
+    # nerf_to_local = np.array(json.load(open(f'/home/master_oogway/panda_ws/code/GEM2.0/data/nerf/{instruction}/nerf_to_world.json', 'r'))['nerf_to_world'])
+    # features = panda_ws.get_3d_mask('/home/master_oogway/panda_ws/code/f3rm/outputs/teal_cube/f3rm/2024-08-17_220342/config.yml',
+    #                                  nerf_to_local, instruction, ((-0.5, -0.5, 0), (0.5, 0.5, 0.5)))
+
+    # Then convolve with the picking kernel to determine the picking position in the nerf space,
+    # and use nerf_to_world to get the exact picking position in the world space.
+    # In the post processing of data, convert the picking position from world to nerf space.
+    #####################################################################################################
+    ## to get 3D point clouds from flood fill
+
+    n = 3
+    image_path = f'/home/master_oogway/panda_ws/code/GEM2.0/data/point_cloud_from_depth/{instruction}'
+    images, depths, poses = panda_ws.circle_target_and_capture_images(y, x, z, RADIUS_AROUND_TARGET, n, image_path)
+    panda_ws.panda_arm.go_home()
+    masks = [clip_dino_seg(image, instruction) for image in images]
+    size = min(depths[0].shape)
+    reshaped_masks = [F.interpolate(mask.unsqueeze(0).unsqueeze(0).float(), size=(size, size), 
+                                    mode='bilinear', align_corners=False).squeeze(0).squeeze(0) for mask in masks]
+    resized_mask = torch.zeros(depths[0].shape)
+    left = (depths[0].shape[0] - size) // 2
+    right = left + size
+    top = (depths[0].shape[1] - size) // 2
+    down = top + size
+    resized_masks = []
+    for i in range(len(reshaped_masks)):
+        resized_mask[left:right, top:down] = reshaped_masks[i]
+        resized_masks.append(resized_mask)
+    full_point_cloud, masked_point_cloud = panda_ws.reconstruct_point_clouds(depths, resized_masks, poses)
+    panda_ws.visualize_point_clouds(full_point_cloud, masked_point_cloud)
+
+    #####################################################################################################
+    panda_ws.panda_arm.go_home()
+    panda_ws.panda_arm.move_gripper_width(0.1)
 
 if __name__ == '__main__':
     main()

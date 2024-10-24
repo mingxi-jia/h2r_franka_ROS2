@@ -6,9 +6,9 @@ from std_srvs.srv import Trigger
 import rospy
 import numpy as np
 from src.robotiq_gripper import Gripper
-from src.utils.rpy_to_rot_vector import rpyToRotVector
+from src.panda_utils.rpy_to_rot_vector import rpyToRotVector
 # from src.tf_proxy import TFProxy
-import src.utils.transformation as transformation
+import src.panda_utils.transformation as transformation
 import time
 from src.collision_detector import CollisionDetector
 

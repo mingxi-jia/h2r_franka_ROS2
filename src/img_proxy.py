@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 import skimage.transform
 import cv2
-import utils.demo_util as demo_util
+import panda_utils.demo_util as demo_util
 # import scipy
 
 WS_CENTER = [320, 628]

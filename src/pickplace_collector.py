@@ -17,7 +17,7 @@ sys.path.append("/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP")
 import rospy
 import tf
 from src.envs.env import Env
-import utils.demo_util_pp as demo_util
+import panda_utils.demo_util_pp as demo_util
 from lepp.parser import parse_instruction
 
 def moveAndPlace(env):

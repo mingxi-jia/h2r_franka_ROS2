@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage.transform as sk_transform
 from scipy.ndimage import median_filter
-from src.utils import transformation
+from src.panda_utils import transformation
 from sklearn.impute import SimpleImputer
 from skimage.restoration import inpaint
 

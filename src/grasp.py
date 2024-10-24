@@ -14,7 +14,7 @@ sys.path.append('..')
 
 import rospy
 from src.envs.env import Env
-import utils.demo_util as demo_util
+import panda_utils.demo_util as demo_util
 
 def moveAndPlace(env):
     place_pose_1 = [-0.37496883, -1.85229093,  1.99809742, -1.71823579, -1.56919986,
