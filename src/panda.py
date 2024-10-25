@@ -108,6 +108,9 @@ class PandaArmControl:
 
         self.scene.attach_box('panda_link8', wrist_cam_name)
     
+    def get_ee_pose(self):
+        return self.robot.get_current_state()
+
     def add_safe_guard(self):
         safe_guard_pose = PoseStamped()
         safe_guard_name = "safe_guard"
@@ -124,8 +127,14 @@ class PandaArmControl:
         msg.goal.width = width
         msg.goal.speed = 0.1
         self.gripper_pub.publish(msg)
+    
+    def open_gripper(self):
+        self.move_gripper_width(1.0)
+    
+    def close_gripper(self):
+        self.move_gripper_width(0.0)
         
-    def move_gripper_to_pose(self, x, y, z, rx, ry, rz):
+    def move_ee_to_pose(self, x, y, z, rx, ry, rz):
         self.move_group.set_end_effector_link("panda_hand_tcp")
         pose_target = Pose()
         pose_target.position.x = x
