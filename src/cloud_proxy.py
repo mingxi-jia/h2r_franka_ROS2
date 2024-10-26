@@ -1,4 +1,5 @@
 import time
+import numpy as np
 
 import rospy
 from sensor_msgs.msg import Image, CameraInfo
@@ -26,11 +27,12 @@ sys.path.append("/home/master_oogway/panda_ws/src/GEM2.0")
 # import scipy
 
 class CloudProxy:
-    def __init__(self):
+    def __init__(self, workspace_size:np.array, use_inhand=False):
         self.fixed_cam_names = ['dave', 'mel', 'kevin', 'bob', 'stuart']
         # self.fixed_cam_names = ['stuart']
-        self.inhand_cam_name = 'tim'
-        self.cam_names = self.fixed_cam_names + [self.inhand_cam_name]
+        if use_inhand:
+            self.fixed_cam_names.append('tim')
+        self.cam_names = self.fixed_cam_names
         self.base_frame = 'panda_link0'
 
         self.topic1_depth = "/bob/aligned_depth_to_color/image_raw"
@@ -98,12 +100,7 @@ class CloudProxy:
         self.rgb6_frame = "mel_color_optical_frame"
 
         # RT base_link
-        # self.workspace = np.array([[0.28, 0.71],
-        #                             [-0.32, 0.26],
-        #                             [-0.1, 1.0]])
-        self.workspace = np.array([[0.20, 0.75],
-                                    [-0.30, 0.25],
-                                    [-0.02, 1.0]])
+        self.workspace = workspace_size
         self.center = self.workspace.mean(-1)
         self.x_size = self.workspace[0].max() - self.workspace[0].min()
         self.x_half = self.x_size/2
@@ -255,6 +252,7 @@ class CloudProxy:
         return image
 
     def get_rgb_image(self, cam_id):
+        print(f'waiting for camera {cam_id}')
         if cam_id == 1 or cam_id == 'bob':
             while self.rgbimg1 is None:
                 rospy.sleep(0.01)
@@ -549,7 +547,10 @@ class CloudProxy:
 
 def test_point_cloud():
     rospy.init_node('test')
-    cloud_proxy = CloudProxy()
+    workspace = np.array([[0.3, 0.7],
+                        [-0.2, 0.2],
+                        [-0.02, 1.0]])
+    cloud_proxy = CloudProxy(workspace)
     cloud = cloud_proxy.get_workspace_pc()
     pcd = open3d.geometry.PointCloud()
     pcd.points = open3d.utility.Vector3dVector(cloud[:,:3])

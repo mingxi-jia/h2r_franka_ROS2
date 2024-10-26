@@ -9,9 +9,8 @@ from scipy.spatial.transform import Rotation as R
 
 GRIPPER_OFFSET = 0.1
 CAMERA_OFFSET = -0.12
-HOME_POSE = [-0.09838453584596964, -0.944262178057893, 0.22341715258813172, 
-             -2.0975801058148966, 0.19633714461031365, 1.1709991560687036, 
-             0.9094869062085559]
+HOME_POSE = [-0.45193419933995677, -1.2044957511682395, -0.8595624605660755, 
+            -2.567043996826839, -0.8227578511794731, 1.5092713055505993, -0.09652566734272174]
 TIM_TO_TCP = [0.048, -0.012, -0.075, 0.004, -0.003, -0.707, 0.707]
 
 class PandaArmControl:
@@ -22,24 +21,34 @@ class PandaArmControl:
         self.group_name = "panda_arm"
         self.init_scene()
         self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
+        self.move_group.set_end_effector_link("panda_hand_tcp")
         self.gripper_pub = rospy.Publisher('/franka_gripper/move/goal', MoveActionGoal, queue_size=10)
 
     def init_scene(self):
         rospy.sleep(0.2)
+
+        table_pose = PoseStamped()
+        table_name = "wall"
+        table_pose.header.frame_id = "panda_link0"
+        table_pose.pose.position.x = -0.5
+        table_pose.pose.position.y = 0.
+        table_pose.pose.position.z = 0.
+        table_pose.pose.orientation.w = 1.0
+        self.scene.add_box(table_name, table_pose, size=(0.2, 1.8, 1.8))
         
         table_pose = PoseStamped()
         table_name = "table"
         table_pose.header.frame_id = "panda_link0"
         table_pose.pose.position.x = 0.5
         table_pose.pose.position.y = 0.
-        table_pose.pose.position.z = -0.11
+        table_pose.pose.position.z = -0.12
         table_pose.pose.orientation.w = 1.0
         self.scene.add_box(table_name, table_pose, size=(1.8, 1.8, 0.233))
 
         pole2_pose = PoseStamped()
         pole2_name = "pole_for_kevin"
         pole2_pose.header.frame_id = "panda_link0"
-        pole2_pose.pose.position.x = 0.85
+        pole2_pose.pose.position.x = 1.2
         pole2_pose.pose.position.y = -0.03
         pole2_pose.pose.position.z = 0.562
         pole2_pose.pose.orientation.w = 1.0
@@ -57,20 +66,29 @@ class PandaArmControl:
         pole3_pose = PoseStamped()
         pole3_name = "stick_for_kevin"
         pole3_pose.header.frame_id = "panda_link0"
-        pole3_pose.pose.position.x = 0.668
+        pole3_pose.pose.position.x = 1.3
         pole3_pose.pose.position.y = -0.03
         pole3_pose.pose.position.z = 1.11
         pole3_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole3_name, pole3_pose, size=(0.55, 0.2, 0.2))
+        self.scene.add_box(pole3_name, pole3_pose, size=(1.2, 0.2, 0.2))
 
         pole4_pose = PoseStamped()
         pole4_name = "pole_for_stuart"
         pole4_pose.header.frame_id = "panda_link0"
-        pole4_pose.pose.position.x = 0.12
-        pole4_pose.pose.position.y = -0.53
+        pole4_pose.pose.position.x = 0.0
+        pole4_pose.pose.position.y = 0.4
         pole4_pose.pose.position.z = 0.5
         pole4_pose.pose.orientation.w = 1.0
         self.scene.add_box(pole4_name, pole4_pose, size=(0.2, 0.2, 1.02))
+
+        pole5_pose = PoseStamped()
+        pole5_name = "pole_for_mel"
+        pole5_pose.header.frame_id = "panda_link0"
+        pole5_pose.pose.position.x = 0.50
+        pole5_pose.pose.position.y = -0.53
+        pole5_pose.pose.position.z = 0.5
+        pole5_pose.pose.orientation.w = 1.0
+        self.scene.add_box(pole5_name, pole5_pose, size=(0.2, 0.2, 1.02))
 
         # wire = PoseStamped()
         # wire_name = "wire"
@@ -85,14 +103,14 @@ class PandaArmControl:
         # self.scene.add_box(wire_name, wire, size=(0.12, 0.04, 0.03))
         # self.scene.attach_box('panda_hand_tcp', wire_name)
 
-        gripper = PoseStamped()
-        gripper_name = "gripper"
-        gripper.header.frame_id = "panda_hand_tcp"
-        gripper.pose.position.x = 0
-        gripper.pose.position.y = 0
-        gripper.pose.position.z = 0.04
-        self.scene.add_box(gripper_name, gripper, size=(0.04, 0.10, 0.06))
-        self.scene.attach_box('panda_hand_tcp', gripper_name)
+        # gripper = PoseStamped()
+        # gripper_name = "gripper"
+        # gripper.header.frame_id = "panda_hand_tcp"
+        # gripper.pose.position.x = 0
+        # gripper.pose.position.y = 0
+        # gripper.pose.position.z = 0.04
+        # self.scene.add_box(gripper_name, gripper, size=(0.04, 0.10, 0.02))
+        # self.scene.attach_box('panda_hand_tcp', gripper_name)
 
         wrist_cam_pose = PoseStamped()
         wrist_cam_name = "tim"
@@ -108,8 +126,18 @@ class PandaArmControl:
 
         self.scene.attach_box('panda_link8', wrist_cam_name)
     
-    def get_ee_pose(self):
-        return self.robot.get_current_state()
+    def get_ee_position(self):
+        x = self.move_group.get_current_pose().pose.position.x
+        y = self.move_group.get_current_pose().pose.position.y
+        z = self.move_group.get_current_pose().pose.position.z
+        return np.array([x,y,z])
+
+    def get_ee_quaternion(self):
+        x = self.move_group.get_current_pose().pose.orientation.x
+        y = self.move_group.get_current_pose().pose.orientation.y
+        z = self.move_group.get_current_pose().pose.orientation.z
+        w = self.move_group.get_current_pose().pose.orientation.w
+        return np.array([x,y,z,w])
 
     def add_safe_guard(self):
         safe_guard_pose = PoseStamped()
@@ -135,7 +163,7 @@ class PandaArmControl:
         self.move_gripper_width(0.0)
         
     def move_ee_to_pose(self, x, y, z, rx, ry, rz):
-        self.move_group.set_end_effector_link("panda_hand_tcp")
+        
         pose_target = Pose()
         pose_target.position.x = x
         pose_target.position.y = y
