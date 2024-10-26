@@ -38,7 +38,7 @@ class GEMWS:
         self.panda_arm.go_home()
         self.panda_arm.open_gripper()
 
-    def convert_robot_xy_to_pixel_xy(self):
+    def get_ee_pixel_xy(self):
         # upper left corner of the action space is the pixel origin, x as row, y as column
         xy_in_robot_frame = self.panda_arm.get_ee_pose()
         x, y = xy_in_robot_frame

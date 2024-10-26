@@ -6,52 +6,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import rospy
 import tf
+import pickle
 
 from src.envs.gem_ws import GEMWS
 import panda_utils.demo_util_pp as demo_util
-from lepp.parser import parse_instruction
-
-# Paths Setup
-sys.path.extend(['./', '..', '/home/ur5/rgbd_grasp_ws/src/helping_hands_rl_ur5/LEPP'])
-
-# Constants
-Z_MIN_ROBOT = -0.1621
-WS_CENTER = [-0.445, -0.079, -0.1625]
-ACTION_SEQUENCE = 'pxyzr'
-OBS_SOURCE = 'raw'
-MAX_Z, MIN_Z = 0.12, 0.02
-
-# Workspace bounds
-WORKSPACE = np.array([
-    [WS_CENTER[0] - 0.15, WS_CENTER[0] + 0.15],
-    [WS_CENTER[1] - 0.15, WS_CENTER[1] + 0.15],
-    [WS_CENTER[2], 0.50]
-])
 
 
-def capture_observation(env):
+def capture_observation(env:GEMWS):
     """Capture multi-view RGB-D observations from the environment."""
     return env.get_multi_obs()
 
-
-def plot_image(image):
+def plot_image(image:np.array):
     """Display an RGB image."""
-    plt.imshow(np.rot90(image[180:476, 500:730, :3] / 255, 2))
+    plt.imshow(image / 255)
     plt.show(block=False)
     plt.pause(1)
 
 
-def get_action_data(tf_listener, env, instruction):
+def get_action_data(env:GEMWS):
     """Retrieve positional data for the pick and place task and format as metadata."""
     pose_data = {}
     for action in ['pick', 'place']:
         input(f"{action.capitalize()}ing: move the arm to the {action} position and press ENTER")
-        xyz = env.ur5.tool_position.copy()
-        pose_data[f'{action}_pos'] = np.concatenate((xyz, env.ur5.joint_values.copy()))
-        pose_data[f'{action}_quat'] = env.ur5.tool_quat.copy()
-        pose_data[f'{action}_xyz_base'], pose_data[f'{action}_quat_base'] = tf_listener.lookup_transform('/base_link', '/tool0_controller', rospy.Time(0))
-        pose_data[f'labelled_x_{action}'], pose_data[f'labelled_y_{action}'] = demo_util.xy2pixel([xyz[0], xyz[1]])
-    pose_data['instruction'] = instruction
+        pose_data[f'robot_{action}_pos'] = env.panda_arm.get_ee_pose()
+        pose_data[f'pixel_{action}'] = env.get_ee_pixel_xy()
     return pose_data
 
 def get_env_metadata(env:GEMWS):
@@ -60,27 +38,19 @@ def get_env_metadata(env:GEMWS):
     metadata['extrinsics']  = env.cloud_proxy.get_all_cam_extrinsic()
     return metadata
 
-def save_demos(demos, filename):
-    """Save demonstration data to disk."""
-    today_date = datetime.now().strftime("%Y%m%d")
-    data_path = os.path.join('demo_rss', today_date)
-    os.makedirs(data_path, exist_ok=True)
-    file_path = os.path.join(data_path, filename)
-    np.save(file_path, demos)
-    print(f'Demos (total of {len(demos)}) saved at {os.getcwd()}/{file_path}')
-
+def save_demo(demo:dict, file_path:str):
+    with open(file_path, 'wb') as file:
+        pickle.dump(demo, file)
 
 def main():
     # Initialization
     rospy.init_node('image_proxy')
-    env = GEMWS(ws_center=WS_CENTER, action_sequence=ACTION_SEQUENCE, obs_source=OBS_SOURCE)
-    tf_listener = tf.TransformListener()
+    env = GEMWS()
     rospy.sleep(2)
     env.arm_reset()
     
-    pixel_x_reso, pixel_y_reso = env.cloud_proxy.img_width, env.cloud_proxy.img_height
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f'demo_{current_time}.npy'
+    filename = f'demo_{current_time}.pkl'
     demonstrations = dict()
 
     metadata = get_env_metadata(env)
@@ -90,23 +60,29 @@ def main():
 
     while collection_ongoing:
         # Capture demonstration episode
-        instruction = input("Enter pick&place instruction and press Enter:")
+        instruction = input("Enter instruction and press Enter (format: {PICKOBJ} and {PLACEOBJ}):")
         multiview_rgbd_image = capture_observation(env)
         
-        plot_image(multiview_rgbd_image[1])
-        action = env.convert_robot_xy_to_pixel_xy()
+        plot_image(multiview_rgbd_image['kevin'])
+        action = get_action_data(env)
         
         # Choose action for the captured demo
-        action = input("Options: [r] record, [a] abandon, [re] record new, [ae] abandon new, [rs] record save, [as] abandon save: ").strip().lower()
-        if action in ['r', 're', 'rs']:
-            episode = {'obs': multiview_rgbd_image, 'action': action}
-            demonstrations[f'demo_{demo_index}'] = episode
-        if action in ['re', 'ae']:
+        action = input("Options: [r] record, [a] abandon, [e] end: ").strip().lower()
+        if action in ['r', 'r ']:
+            print("saved and continue")
+            demo = {'obs': multiview_rgbd_image, 'action': action, 'instruction': instruction}
+            demonstrations[f'demo_{demo_index}'] = demo
+            demo_index += 1
+            save_demo(demo, filename)
+        elif action in ['a', 'a ']:
             continue  # Start new episode
-        if action in ['rs', 'as']:
+        elif action in ['e', 'e ']:
             collection_ongoing = False  # End collection
+        else:
+            print("abandon and continue")
+            continue  # Start new episode
 
-    save_demos(demonstrations, filename)
+    print('end')
 
 
 if __name__ == '__main__':
