@@ -8,7 +8,7 @@ import rospy
 import tf
 import pickle
 
-from gem_ws import GEMWS
+from workspace.gem_ws import GEMWS
 import panda_utils.demo_util_pp as demo_util
 
 
