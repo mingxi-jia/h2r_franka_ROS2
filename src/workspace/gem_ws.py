@@ -1,7 +1,7 @@
 import numpy as np
 import rospy
 
-from cloud_proxy import CloudProxy
+from cloud_proxy_ros1 import CloudProxy
 from panda import PandaArmControl
 
 class GEMWS:
@@ -52,6 +52,17 @@ class GEMWS:
         rgb = self.cloud_proxy.get_rgb_image(cam_name)
         rgbd = np.concatenate([rgb, depth[..., None]], axis=-1)
         # return rgbd[]
+        pass
+
+
+    def proprocess_multi_obs((self, obs:dict):
+        pass
+
+    def get_clip_cloud(self)::
+        pass
+
+    def get_topdown_relevancy(self):
+        pass
 
     def arm_reset(self):
         self.robot.go_home()
@@ -69,6 +80,10 @@ class GEMWS:
         return pixel
 
     def move_ee_to_xyr(self, xyzr):
+        x, y, z, topdown_rotation = xyzr
+        self.robot.move_ee_to_pose(x, y, z, np.pi, 0., topdown_rotation)
+
+    def move_ee_to_xyrpy(self, xyrpy):
         x, y, z, topdown_rotation = xyzr
         self.robot.move_ee_to_pose(x, y, z, np.pi, 0., topdown_rotation)
 

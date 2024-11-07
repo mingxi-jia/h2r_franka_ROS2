@@ -28,7 +28,7 @@ sys.path.append("/home/master_oogway/panda_ws/code/GEM2.0")
 from lepp.clip_dino_seg import clip_dino_seg
 from lepp.clip_preprocess import CLIP_processor
 from f3rm_robot.load import load_nerfstudio_outputs
-from cloud_proxy import CloudProxy
+from cloud_proxy_ros1 import CloudProxy
 from panda import PandaArmControl
 
 KEVIN_WS_BOUNDS = [86, 472, 318, 602] # [top, bottom, left, right]
