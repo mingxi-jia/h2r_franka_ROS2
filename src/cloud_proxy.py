@@ -18,7 +18,7 @@ CAM_INDEX_MAP = {
             'stuart': 2,
             'dave': 3,
             'mel': 4,
-            'tim': 5,
+            'tim': 5, # the in hand cam needs 
         }
 CAM_INDEX_MAP = {k: v for k, v in sorted(CAM_INDEX_MAP.items(), key=lambda item: item[1])}
 # Initialize depth topics and subscriptions
@@ -62,13 +62,14 @@ class CloudProxy(Node):
         # Camera names and frames
         self.fixed_cam_names = list(CAM_INDEX_MAP.keys())[:5]
         if use_inhand:
+            self.inhand_cam_name = 'tim'
             self.fixed_cam_names.append('tim')
         self.cam_names = self.fixed_cam_names
         self.base_frame = 'fr3_link0'
+        self.use_inhand = use_inhand
 
         self.depth_images = [None] * len(self.cam_names)
         self.camera_intrinsics = [None] * len(self.cam_names)
-        self.camera_extrinsics = [None] * len(self.cam_names)
         self.rgb_images = [None] * len(self.cam_names)
 
         # Create subscriptions for depth, camera info, and RGB
@@ -98,6 +99,9 @@ class CloudProxy(Node):
         # Wait for initialization
         rclpy.spin_once(self, timeout_sec=1)
         time.sleep(1)
+        
+        self.camera_extrinsics = dict()
+        self.look_and_set_extrinsics()
 
 
     # ----------------------------ROS related functions---------------------------
@@ -156,11 +160,16 @@ class CloudProxy(Node):
         if cam_id not in CAM_INDEX_MAP:
             raise NotImplementedError(f"Camera ID {cam_id} not supported")
         
-        index = CAM_INDEX_MAP[cam_id]
-        while self.camera_extrinsics[index] is None:
-            rclpy.spin_once(self, timeout_sec=0.01)
-        extrinsics = self.camera_extrinsics[index]
-        return extrinsics
+        rgb_frame = RGB_FRAMES[cam_id]
+        T = self.lookup_transform(rgb_frame, self.base_frame)
+        return T
+    
+    def look_and_set_extrinsics(self):
+        print("init: getting camera extrinsics")
+        for cam in self.cam_names:
+            extrinsic = self.get_cam_extrinsic(cam)
+            self.camera_extrinsics[cam] = extrinsic
+    
     # ----------------------------Util functions---------------------------
     def clear_depth(self, cam_index):
         self.depth_images[cam_index] = None
@@ -207,6 +216,17 @@ class CloudProxy(Node):
         T[0:3, 3] = pos
         return T
     
+    def get_all_cam_extrinsic(self):
+        # for cam_id in self.cam_names:
+        #     extrinsics[cam_id] = self.get_cam_extrinsic(cam_id)
+        extrinsics = self.camera_extrinsics
+        return extrinsics
+    
+    def get_all_cam_intrinsic(self):
+        intrinsics = {}
+        for cam_id in self.cam_names:
+            intrinsics[cam_id] = self.get_cam_intrinsic(cam_id)
+        return intrinsics
     # ----------------------------Point cloud functions---------------------------
     def transform_cloud_to_base(self, cloud, cam_id):
         rgb_frame = RGB_FRAMES[cam_id]
@@ -276,8 +296,31 @@ class CloudProxy(Node):
 
         return cloud
     
-    def get_env_screenshot(self):
-        pass
+    def get_env_screenshot(self, file_name):
+        screenshot = dict()
+        # get workspace meta
+        screenshot['workspace_size'] = self.workspace
+        screenshot['cam_names'] = self.cam_names
+        screenshot['enable_inhand'] = self.use_inhand
+        # get camera meta
+        extrinsic_dict = self.get_all_cam_extrinsic()
+        intrinsic_dict = self.get_all_cam_intrinsic()
+        screenshot['extrinsic'] = extrinsic_dict
+        screenshot['intrinsic'] = intrinsic_dict
+        # get multiview images
+        rgb_dict = dict()
+        depth_dict = dict()
+        for cam in self.cam_names:
+            rgb_dict[cam] = self.get_rgb_image(cam)
+            depth_dict[cam] = self.get_depth_image(cam)
+        screenshot['rgbs'] = rgb_dict
+        screenshot['depths'] = depth_dict
+        # get workspace pointcloud
+        pc = self.get_workspace_pc()
+        screenshot['point_cloud'] = pc
+        # save
+        np.save(file_name, screenshot)
+        
     
 def main(args=None):
     rclpy.init(args=args)
@@ -286,8 +329,16 @@ def main(args=None):
                         [-0.02, 1.0]]) 
     cloud_proxy = CloudProxy(workspace_size=workspace_size, use_inhand=False)
 
-    depth = cloud_proxy.get_workspace_pc()
-    print(1)
-
+    try:
+        cloud_proxy.get_env_screenshot('screenshot.npy')
+        print(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # this is needed because of ROS2 mechanism.
+        # without destroy_node(), it somehow wont work if you restart the program
+        cloud_proxy.destroy_node()
+        rclpy.shutdown()
+        
 if __name__ == '__main__':
     main()
