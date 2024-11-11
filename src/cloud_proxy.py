@@ -182,6 +182,10 @@ class CloudProxy(Node):
             self.camera_extrinsics[cam] = extrinsic
     
     # ----------------------------Util functions---------------------------
+    def spin_for_30_times(self):
+        for _ in range(30):
+            rclpy.spin_once(self, timeout_sec=0.1)
+
     def clear_depth(self, cam_index):
         self.depth_images[cam_index] = None
     
@@ -189,7 +193,10 @@ class CloudProxy(Node):
         self.depth_images = [None] * len(self.cam_names)
         self.rgb_images = [None] * len(self.cam_names)
         if self.use_inhand:
-            self.update_inhand_extrinsic()
+            self.camera_extrinsics = dict()
+            self.look_and_set_extrinsics(self.base_frame)
+            time.sleep(0.5)
+            self.spin_for_30_times()
         
     def transform(self, cloud, T, isPosition=True):
         '''Apply the homogeneous transform T to the point cloud. Use isPosition=False if transforming unit vectors.'''
@@ -230,10 +237,11 @@ class CloudProxy(Node):
         return T
     
     def get_all_cam_extrinsic(self):
-        # for cam_id in self.cam_names:
-        #     extrinsics[cam_id] = self.get_cam_extrinsic(cam_id)
-        extrinsics = self.camera_extrinsics
-        return extrinsics
+        for cam_id in self.cam_names:
+            self.camera_extrinsics[cam_id] = self.get_cam_extrinsic(cam_id, self.base_frame)
+        # self.update_inhand_extrinsic()
+        # extrinsics = self.camera_extrinsics
+        return self.camera_extrinsics
     
     def get_all_cam_intrinsic(self):
         intrinsics = {}
@@ -300,7 +308,7 @@ class CloudProxy(Node):
             open3d.visualization.draw_geometries([pcd])
         return cloud
     
-    def get_whole_pc_in_base_frame(self, include_inhand=False):
+    def get_whole_pc_in_base_frame(self, get_inhand=False):
         clouds = []
         for cam in self.fixed_cam_names:
             cloud = self.get_pointcloud_in_cam_frame(cam)
@@ -308,7 +316,8 @@ class CloudProxy(Node):
             clouds.append(cloud)
 
         cloud_inhand = None
-        if include_inhand:
+        if get_inhand:
+            self.update_inhand_extrinsic()
             cloud_inhand = self.get_pointcloud_in_cam_frame(self.inhand_cam_name)
             cloud_inhand = self.transform_cloud_to_base(cloud_inhand, self.inhand_cam_name)
             clouds.append(cloud_inhand)
@@ -316,19 +325,25 @@ class CloudProxy(Node):
         cloud = np.concatenate(clouds, axis=0)
         return cloud, cloud_inhand
     
-    def get_workspace_pc(self, clip_pc_size=True, include_inhand=False):
+    def clip_pc(self, cloud):
+        # filter ws x
+        x_cond = (cloud[:, 0] < self.center[0] + self.x_half) * (cloud[:, 0] > self.center[0] - self.x_half)
+        cloud = cloud[x_cond]
+        # filter ws y
+        y_cond = (cloud[:, 1] < self.center[1] + self.y_half) * (cloud[:, 1] > self.center[1] - self.y_half)
+        cloud = cloud[y_cond]
+        # filter ws z
+        z_cond = (cloud[:, 2] < self.center[2].max()) * (cloud[:, 2] > self.z_min)
+        cloud = cloud[z_cond]
+        return cloud
+
+    def get_workspace_pc(self, clip_pc_size=True, get_inhand=False):
         self.clear_cache()
-        cloud, cloud_inhand = self.get_whole_pc_in_base_frame(include_inhand)
+        cloud, cloud_inhand = self.get_whole_pc_in_base_frame(get_inhand)
         if clip_pc_size:
-            # filter ws x
-            x_cond = (cloud[:, 0] < self.center[0] + self.x_half) * (cloud[:, 0] > self.center[0] - self.x_half)
-            cloud = cloud[x_cond]
-            # filter ws y
-            y_cond = (cloud[:, 1] < self.center[1] + self.y_half) * (cloud[:, 1] > self.center[1] - self.y_half)
-            cloud = cloud[y_cond]
-            # filter ws z
-            z_cond = (cloud[:, 2] < self.center[2].max()) * (cloud[:, 2] > self.z_min)
-            cloud = cloud[z_cond]
+            cloud = self.clip_pc(cloud)
+            if get_inhand:
+                cloud_inhand = self.clip_pc(cloud_inhand)
 
 
         pcd = open3d.geometry.PointCloud()
@@ -347,6 +362,7 @@ class CloudProxy(Node):
     
     
     def get_env_screenshot(self, file_name, clip_pc_size=True, save_point_cloud=True):
+        self.clear_cache()
         screenshot = dict()
         # get workspace meta
         screenshot['workspace_size'] = self.workspace
@@ -365,19 +381,19 @@ class CloudProxy(Node):
             print(f'getting images from {cam}')
             rgb_dict[cam] = self.get_rgb_image(cam)
             depth_dict[cam] = self.get_depth_image(cam)
-            self.clear_cache()
+            # self.clear_cache()
         screenshot['rgbs'] = rgb_dict
         screenshot['depths'] = depth_dict
         # get workspace pointcloud
         if save_point_cloud:
-            pc, pc_inhand = self.get_workspace_pc(clip_pc_size=clip_pc_size, include_inhand=False)
+            pc, pc_inhand = self.get_workspace_pc(clip_pc_size=clip_pc_size, get_inhand=True)
             
-            # pcd = open3d.geometry.PointCloud()
-            # pcd.points = open3d.utility.Vector3dVector(pc[:,:3])
-            # pcd.colors = open3d.utility.Vector3dVector(pc[:, 3:6]/255)
-            # open3d.visualization.draw_geometries([pcd])
+            pcd = open3d.geometry.PointCloud()
+            pcd.points = open3d.utility.Vector3dVector(pc_inhand[:,:3])
+            pcd.colors = open3d.utility.Vector3dVector(pc_inhand[:, 3:6]/255)
+            open3d.visualization.draw_geometries([pcd])
             
-            self.clear_cache()
+            
             screenshot['point_cloud'] = pc
             screenshot['point_cloud_inhand'] = pc_inhand
         # save
