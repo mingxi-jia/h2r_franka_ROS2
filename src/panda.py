@@ -1,246 +1,132 @@
-import rospy
-import moveit_commander
-import numpy as np
-import sys
-from geometry_msgs.msg import Pose, PoseStamped
-import tf.transformations
-from franka_gripper.msg import MoveActionGoal
-from scipy.spatial.transform import Rotation as R
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped, Pose
+from moveit_msgs.srv import ApplyPlanningScene
+from moveit_msgs.msg import CollisionObject, PlanningSceneWorld, PlanningScene
+from shape_msgs.msg import SolidPrimitive
+import time
 
 GRIPPER_OFFSET = 0.1
 CAMERA_OFFSET = -0.12
-HOME_POSE = [-0.45193419933995677, -1.2044957511682395, -0.8595624605660755, 
-            -2.567043996826839, -0.8227578511794731, 1.5092713055505993, -0.09652566734272174]
+HOME_POSE = [-0.1727104764639174, -0.5949685050443688, 1.5450852559912969, 
+             0.33045405768433256, -0.9930651649135822, -2.5002492544036263, -0.47692708008218576]
 TIM_TO_TCP = [0.048, -0.012, -0.075, 0.004, -0.003, -0.707, 0.707]
+GRIPPER_OPEN_WIDTH = 0.08  # meters
+GRIPPER_CLOSE_WIDTH = 0.01  # meters
 
-class PandaArmControl:
+class PandaArmControl(Node):
     def __init__(self):
-
-        self.robot = moveit_commander.RobotCommander()
-        self.scene = moveit_commander.PlanningSceneInterface()
-        self.group_name = "panda_arm"
-        self.init_scene()
-        self.move_group = moveit_commander.MoveGroupCommander(self.group_name)
-        self.move_group.set_end_effector_link("panda_hand_tcp")
-        self.gripper_pub = rospy.Publisher('/franka_gripper/move/goal', MoveActionGoal, queue_size=10)
+        super().__init__('fr3_arm_control_custom')
+        self.goal_pub = self.create_publisher(PlanningSceneWorld, '/planning_scene', 10)
+        self.cli = self.create_client(ApplyPlanningScene, 'apply_planning_scene')
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for apply_planning_scene service...')
+        self.req = ApplyPlanningScene.Request()
+        
+        self.robot_frame = "fr3_link0"
+        self.tcp_frame = "fr3_link8"
+        self.get_logger().info("PandaArmControl initialized")
 
     def init_scene(self):
-        rospy.sleep(0.2)
+        """Add collision objects to the planning scene."""
 
-        table_pose = PoseStamped()
-        table_name = "wall"
-        table_pose.header.frame_id = "panda_link0"
-        table_pose.pose.position.x = -0.5
-        table_pose.pose.position.y = 0.
-        table_pose.pose.position.z = 0.
-        table_pose.pose.orientation.w = 1.0
-        self.scene.add_box(table_name, table_pose, size=(0.2, 1.8, 1.8))
+        # add wall
+        wall = self.create_collision(name='wall', size=[0.4, 1.8, 1.8], xyz_pose=[-0.5, 0.0, 0.0])
         
-        table_pose = PoseStamped()
-        table_name = "table"
-        table_pose.header.frame_id = "panda_link0"
-        table_pose.pose.position.x = 0.5
-        table_pose.pose.position.y = 0.
-        table_pose.pose.position.z = -0.12
-        table_pose.pose.orientation.w = 1.0
-        self.scene.add_box(table_name, table_pose, size=(1.8, 1.8, 0.233))
-
-        pole2_pose = PoseStamped()
-        pole2_name = "pole_for_kevin"
-        pole2_pose.header.frame_id = "panda_link0"
-        pole2_pose.pose.position.x = 1.2
-        pole2_pose.pose.position.y = -0.03
-        pole2_pose.pose.position.z = 0.562
-        pole2_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole2_name, pole2_pose, size=(0.08, 0.08, 1.25))
-
-        pole1_pose = PoseStamped()
-        pole1_name = "pole_for_bob"
-        pole1_pose.header.frame_id = "panda_link0"
-        pole1_pose.pose.position.x = 0.565
-        pole1_pose.pose.position.y = 0.56
-        pole1_pose.pose.position.z = 0.5
-        pole1_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole1_name, pole1_pose, size=(0.2, 0.2, 1.02))
-
-        pole3_pose = PoseStamped()
-        pole3_name = "stick_for_kevin"
-        pole3_pose.header.frame_id = "panda_link0"
-        pole3_pose.pose.position.x = 1.3
-        pole3_pose.pose.position.y = -0.03
-        pole3_pose.pose.position.z = 1.11
-        pole3_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole3_name, pole3_pose, size=(1.2, 0.2, 0.2))
-
-        pole4_pose = PoseStamped()
-        pole4_name = "pole_for_stuart"
-        pole4_pose.header.frame_id = "panda_link0"
-        pole4_pose.pose.position.x = 0.0
-        pole4_pose.pose.position.y = 0.4
-        pole4_pose.pose.position.z = 0.5
-        pole4_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole4_name, pole4_pose, size=(0.2, 0.2, 1.02))
-
-        pole5_pose = PoseStamped()
-        pole5_name = "pole_for_mel"
-        pole5_pose.header.frame_id = "panda_link0"
-        pole5_pose.pose.position.x = 0.50
-        pole5_pose.pose.position.y = -0.53
-        pole5_pose.pose.position.z = 0.5
-        pole5_pose.pose.orientation.w = 1.0
-        self.scene.add_box(pole5_name, pole5_pose, size=(0.2, 0.2, 1.02))
-
-        # wire = PoseStamped()
-        # wire_name = "wire"
-        # wire.header.frame_id = "panda_hand_tcp"
-        # wire.pose.position.x = TIM_TO_TCP[0]+0.04
-        # wire.pose.position.y = TIM_TO_TCP[1]
-        # wire.pose.position.z = TIM_TO_TCP[2]
-        # wire.pose.orientation.x = TIM_TO_TCP[3]
-        # wire.pose.orientation.y = TIM_TO_TCP[4]
-        # wire.pose.orientation.z = TIM_TO_TCP[5]
-        # wire.pose.orientation.w = TIM_TO_TCP[6]
-        # self.scene.add_box(wire_name, wire, size=(0.12, 0.04, 0.03))
-        # self.scene.attach_box('panda_hand_tcp', wire_name)
-
-        # gripper = PoseStamped()
-        # gripper_name = "gripper"
-        # gripper.header.frame_id = "panda_hand_tcp"
-        # gripper.pose.position.x = 0
-        # gripper.pose.position.y = 0
-        # gripper.pose.position.z = 0.04
-        # self.scene.add_box(gripper_name, gripper, size=(0.04, 0.10, 0.02))
-        # self.scene.attach_box('panda_hand_tcp', gripper_name)
-
-        wrist_cam_pose = PoseStamped()
-        wrist_cam_name = "tim"
-        wrist_cam_pose.header.frame_id = "panda_hand_tcp"
-        wrist_cam_pose.pose.position.x = TIM_TO_TCP[0]
-        wrist_cam_pose.pose.position.y = TIM_TO_TCP[1]
-        wrist_cam_pose.pose.position.z = TIM_TO_TCP[2]
-        wrist_cam_pose.pose.orientation.x = TIM_TO_TCP[3]
-        wrist_cam_pose.pose.orientation.y = TIM_TO_TCP[4]
-        wrist_cam_pose.pose.orientation.z = TIM_TO_TCP[5]
-        wrist_cam_pose.pose.orientation.w = TIM_TO_TCP[6]
-        self.scene.add_box(wrist_cam_name, wrist_cam_pose, size=(0.03, 0.035, 0.03))
-
-        self.scene.attach_box('panda_link8', wrist_cam_name)
-    
-    def get_ee_position(self):
-        x = self.move_group.get_current_pose().pose.position.x
-        y = self.move_group.get_current_pose().pose.position.y
-        z = self.move_group.get_current_pose().pose.position.z
-        return np.array([x,y,z])
-
-    def get_ee_quaternion(self):
-        x = self.move_group.get_current_pose().pose.orientation.x
-        y = self.move_group.get_current_pose().pose.orientation.y
-        z = self.move_group.get_current_pose().pose.orientation.z
-        w = self.move_group.get_current_pose().pose.orientation.w
-        return np.array([x,y,z,w])
-
-    def add_safe_guard(self):
-        safe_guard_pose = PoseStamped()
-        safe_guard_name = "safe_guard"
-        safe_guard_pose.header.frame_id = "panda_link0"
-        safe_guard_pose.pose.position.z = 0.05
-        safe_guard_pose.pose.orientation.w = 1.0
-        self.scene.add_box(safe_guard_name, safe_guard_pose, size=(1.8, 1.8, 0.05))
-    
-    def remove_safe_guard(self):
-        self.scene.remove_world_object("safe_guard")
-    
-    def move_gripper_width(self, width):
-        msg = MoveActionGoal()
-        msg.goal.width = width
-        msg.goal.speed = 0.1
-        self.gripper_pub.publish(msg)
-    
-    def open_gripper(self):
-        self.move_gripper_width(1.0)
-    
-    def close_gripper(self):
-        self.move_gripper_width(0.0)
+        # Add the collision object to the planning scene
+        planning_scene = PlanningScene()
+        planning_scene.world.collision_objects.append(wall)
+        planning_scene.is_diff = True
+        # Send the request
+        self.req.scene = planning_scene
+        self.future = self.cli.call_async(self.req)
         
-    def move_ee_to_pose(self, x, y, z, rx, ry, rz):
-        
-        pose_target = Pose()
-        pose_target.position.x = x
-        pose_target.position.y = y
-        pose_target.position.z = z
-        
-        quaternion = self.quaternion_from_euler(rx, ry, rz)
-        pose_target.orientation.x = quaternion[0]
-        pose_target.orientation.y = quaternion[1]
-        pose_target.orientation.z = quaternion[2]
-        pose_target.orientation.w = quaternion[3]
-        
-        self.move_group.set_pose_target(pose_target)
-        plan = self.move_group.go(wait=True)
-        
-        self.move_group.stop()
-        self.move_group.clear_pose_targets()
+        while rclpy.ok():
+            rclpy.spin_once(self)
+            if self.future.done():
+                try:
+                    response = self.future.result()
+                    self.get_logger().info('Planning scene updated successfully')
+                except Exception as e:
+                    self.get_logger().error(f'Service call failed: {e}')
+                break
 
-    def transform_camera_to_tcp(self, x, y, z, rx, ry, rz):
-        """
-        Transform the camera position and orientation to the TCP position and orientation.
-
-        Parameters:
-        xyzrpy (list or np.array): Position and orientation of the camera [x, y, z, roll, pitch, yaw].
-        relative_tcp_xyzrpy (list or np.array): Relative position and orientation of the TCP to the camera [x, y, z, roll, pitch, yaw].
-
-        Returns:
-        np.array: Position and orientation of the TCP [x, y, z, roll, pitch, yaw].
-        """
-
-        t_tim_to_tcp = np.array(TIM_TO_TCP[:3])
-        r_tim_to_tcp = R.from_euler('xyz', TIM_TO_TCP[3:]).as_matrix()
-
-        t_camera = np.array([x, y, z])
-        r_camera = R.from_euler('xyz', [rx, ry, rz]).as_matrix()
+    def create_collision(self, name, size: list, xyz_pose: list):
+        """Add collision objects to the planning scene."""
+        collision_object = CollisionObject()
+        collision_object.header.frame_id = self.tcp_frame
+        collision_object.id = name
         
-        # Hand's position and orientation
-        r_tcp = r_camera @ r_tim_to_tcp
-        t_tcp = r_camera @ t_tim_to_tcp + t_camera
-        r_tcp = R.from_matrix(r_tcp).as_euler('xyz')
+        # Define wall
+        obj = SolidPrimitive()
+        obj.type = SolidPrimitive.BOX
+        obj.dimensions = [size[0], size[1], size[2]]
+        obj_pose = Pose()
+        obj_pose.position.x = xyz_pose[0]
+        obj_pose.position.y = xyz_pose[1]
+        obj_pose.position.z = xyz_pose[2]
+        obj_pose.orientation.w = 1.0
+        collision_object.primitives.append(obj)
+        collision_object.primitive_poses.append(obj_pose)
+        collision_object.pose = obj_pose
+        collision_object.operation = CollisionObject.ADD
+        
+        return collision_object
 
-        tcp_xyzrpy = np.concatenate((t_tcp, r_tcp))
-        return tcp_xyzrpy
-    
-    def move_camera_to_pose(self, x, y, z, rx, ry, rz):
-        self.move_group.set_end_effector_link("tim")
-        pose_target = Pose()
-        pose_target.position.x = x
-        pose_target.position.y = y
-        pose_target.position.z = z
         
-        quaternion = self.quaternion_from_euler(rx, ry, rz)
-        pose_target.orientation.x = quaternion[0]
-        pose_target.orientation.y = quaternion[1]
-        pose_target.orientation.z = quaternion[2]
-        pose_target.orientation.w = quaternion[3]
-        
-        self.move_group.set_pose_target(pose_target)
-        plan = self.move_group.go(wait=True)
-        
-        self.move_group.stop()
-        self.move_group.clear_pose_targets()
-        
-    def quaternion_from_euler(self, roll, pitch, yaw):
-        return tf.transformations.quaternion_from_euler(roll, pitch, yaw)
     
     def go_home(self):
-        self.move_group.go(HOME_POSE, wait=True)
+        """Move the robot to the home position."""
+        self.panda_arm.set_start_state_to_current_state()
+        self.panda_arm.set_goal_state(configuration_name="ready")
+        self.plan_and_execute()
+        self.get_logger().info("Moved to home position")
 
-if __name__ == "__main__":
+    def move_to_pose(self, x, y, z, rx, ry, rz):
+        """Move the robot to a specified pose."""
+        pose_goal = PoseStamped()
+        pose_goal.header.frame_id = "panda_link0"
+        pose_goal.pose.position.x = x
+        pose_goal.pose.position.y = y
+        pose_goal.pose.position.z = z
+        pose_goal.pose.orientation.x = rx
+        pose_goal.pose.orientation.y = ry
+        pose_goal.pose.orientation.z = rz
+        pose_goal.pose.orientation.w = 0.0  # Adjust as needed
 
-    moveit_commander.roscpp_initialize(sys.argv)
-    rospy.init_node('move_group_python_interface', anonymous=True)
-    panda_arm = PandaArmControl()
-    panda_arm.go_home()
-    # panda_arm.move_gripper_to_pose(0.1, 0.2, 0.5, np.pi, 0, 0)
-    # panda_arm.move_camera_to_pose(0.1, 0.2, 0.5, np.pi, 0, np.pi/2)
-    # panda_arm.go_home()
-    # panda_arm.move_gripper_to_pose(0.1, 0.2, 0.5, 3.14, 0, -0.8)
-    # panda_arm.move_gripper_to_pose(0.4, 0.1, 0.3, 3.14, 0, 2.4)  # Example target pose
-    # panda_arm.move_gripper_to_pose(0.6, -0.1, 0.007, 3.14, 0, 2.4)
+        self.panda_arm.set_start_state_to_current_state()
+        self.panda_arm.set_goal_state(pose_stamped_msg=pose_goal, pose_link="panda_link8")
+        self.plan_and_execute()
+        self.get_logger().info(f"Moved to pose: x={x}, y={y}, z={z}, rx={rx}, ry={ry}, rz={rz}")
+
+    def plan_and_execute(self):
+        """Helper function to plan and execute motion."""
+        plan_result = self.panda_arm.plan()
+        if plan_result:
+            self.get_logger().info("Executing plan")
+            robot_trajectory = plan_result.trajectory
+            self.panda.execute(robot_trajectory, controllers=[])
+        else:
+            self.get_logger().error("Planning failed")
+        time.sleep(1)
+
+    def control_gripper(self, width):
+        """Send a command to control the gripper."""
+        command = f"width:{width}"
+        self.gripper_pub.publish(String(data=command))
+        self.get_logger().info(f"Gripper command sent: {command}")
+
+def main(args=None):
+    rclpy.init(args=args)
+    
+    node = PandaArmControl()
+    node.init_scene()
+
+    
+
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

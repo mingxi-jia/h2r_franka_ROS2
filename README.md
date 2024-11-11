@@ -1,8 +1,38 @@
 # Instructions (ROS2)
-
-
+## robot
+```
+# (option 1) open robot without moveit
+ros2 launch franka_bringup franka.launch.py robot_ip:=<ip> arm_id:=fr3 use_rviz:=true
+# (option 2) open robot with official moveit
+ros2 launch launch/moveit.launch.py robot_ip:=<ip>
+# (option 3) open robot with modified real-time servoing moveit
+ros2 launch franka bringup franka.launch.py robot_ip:=<ip>
+ros2 service call /servo_node/start_servo std_srvs/srv/Trigger
+ros2 run ~/panda_ws/code/spacemouse_servo_pub.py
+# open gripper
+ros2 launch franka_gripper gripper.launch.py robot_ip:<ip>
+```
+## robot commands
+```
+ros2 action send_goal -f /fr3_gripper/grasp franka_msgs/action/Grasp "{width: 0.00, speed: 0.03, force: 1}"
+ros2 action send_goal -f /fr3_gripper/homing franka_msgs/action/Homing {}
+```
+## cameras
+```
+# open cameras
+ros2 launch launch/launch_all_cameras.launch.py
+```
 # tricks (ROS2)
-
+```
+# rqt
+rqt --clear-config
+# rviz 
+ros2 run rviz2 rviz2
+# see transformation
+ros2 run tf2_ros tf2_echo fr3_link0 dave_link
+# load parameters
+ros2 param load /dave/dave_camera configs/dave_config.yaml
+```
 
 ### Instructions (ROS1)
 1. Cameras

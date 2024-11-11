@@ -11,6 +11,9 @@ import tf_transformations
 from geometry_msgs.msg import TransformStamped
 import time
 import open3d 
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+import copy
 
 CAM_INDEX_MAP = {
             'bob': 0,
@@ -34,7 +37,7 @@ TOPICS_RGB = {
     'bob': "/bob/color/image_raw",
     'kevin': "/kevin/color/image_raw",
     'stuart': "/stuart/color/image_raw",
-    'tim': "/tim/color/image_raw",
+    'tim': "/tim/color/image_rect_raw",
     'dave': "/dave/color/image_raw",
     'mel': "/mel/color/image_raw"
 }
@@ -56,16 +59,16 @@ TOPICS_CAM_INFO = {
 }
 
 class CloudProxy(Node):
-    def __init__(self, workspace_size: np.array, use_inhand=False):
+    def __init__(self, workspace_size: np.array, use_inhand=False, base_frame='fr3_link0'):
         super().__init__('cloud_proxy')
 
         # Camera names and frames
         self.fixed_cam_names = list(CAM_INDEX_MAP.keys())[:5]
+        self.inhand_cam_name = 'tim'
+        self.cam_names = copy.copy(self.fixed_cam_names)
         if use_inhand:
-            self.inhand_cam_name = 'tim'
-            self.fixed_cam_names.append('tim')
-        self.cam_names = self.fixed_cam_names
-        self.base_frame = 'fr3_link0'
+            self.cam_names.append(self.inhand_cam_name)
+        self.base_frame = base_frame
         self.use_inhand = use_inhand
 
         self.depth_images = [None] * len(self.cam_names)
@@ -83,7 +86,7 @@ class CloudProxy(Node):
         
 
         self.workspace = workspace_size
-        self.center = self.workspace.mean(-1)
+        self.center = self.workspace.mean(-1) if base_frame=='fr3_link0' else np.array([0., 0., self.workspace.mean(-1)[-1]])
         self.x_size = self.workspace[0].max() - self.workspace[0].min()
         self.x_half = self.x_size / 2
         self.y_size = self.workspace[1].max() - self.workspace[1].min()
@@ -93,6 +96,8 @@ class CloudProxy(Node):
         # Transform listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread = True)
+        # Initialize TransformBroadcaster
+        self.tf_broadcaster = TransformBroadcaster(self)
 
         self.bridge = CvBridge()
 
@@ -101,7 +106,10 @@ class CloudProxy(Node):
         time.sleep(1)
         
         self.camera_extrinsics = dict()
-        self.look_and_set_extrinsics()
+        # self.look_and_set_extrinsics()
+        self.look_and_set_extrinsics(base_frame)
+        # Publish the transform
+        # self.create_timer(0.1, lambda: self.publish_workspace_transform(self.center, [0.,0.,0.,1.]))
 
 
     # ----------------------------ROS related functions---------------------------
@@ -156,18 +164,21 @@ class CloudProxy(Node):
         intrinsics = self.camera_intrinsics[index]
         return intrinsics
     
-    def get_cam_extrinsic(self, cam_id):
+    def get_cam_extrinsic(self, cam_id, base_frame):
         if cam_id not in CAM_INDEX_MAP:
             raise NotImplementedError(f"Camera ID {cam_id} not supported")
         
         rgb_frame = RGB_FRAMES[cam_id]
-        T = self.lookup_transform(rgb_frame, self.base_frame)
+        T = self.lookup_transform(rgb_frame, base_frame)
+        print(f"got {cam_id} pose.")
         return T
     
-    def look_and_set_extrinsics(self):
-        print("init: getting camera extrinsics")
+    def look_and_set_extrinsics(self, base_frame=None):
+        if base_frame is None:
+            base_frame = self.base_frame
+        print(f"init: getting camera extrinsics in frame {base_frame}")
         for cam in self.cam_names:
-            extrinsic = self.get_cam_extrinsic(cam)
+            extrinsic = self.get_cam_extrinsic(cam, base_frame)
             self.camera_extrinsics[cam] = extrinsic
     
     # ----------------------------Util functions---------------------------
@@ -177,6 +188,8 @@ class CloudProxy(Node):
     def clear_cache(self):
         self.depth_images = [None] * len(self.cam_names)
         self.rgb_images = [None] * len(self.cam_names)
+        if self.use_inhand:
+            self.update_inhand_extrinsic()
         
     def transform(self, cloud, T, isPosition=True):
         '''Apply the homogeneous transform T to the point cloud. Use isPosition=False if transforming unit vectors.'''
@@ -202,7 +215,7 @@ class CloudProxy(Node):
         keep_trying = True
         while keep_trying:
             try:
-                transformMsg = self.tf_buffer.lookup_transform(toFrame, fromFrame, lookupTime, Duration(seconds=5))
+                transformMsg = self.tf_buffer.lookup_transform(toFrame, fromFrame, lookupTime, Duration(seconds=1))
                 keep_trying = False
             except:
                 rclpy.spin_once(self, timeout_sec=1)
@@ -227,6 +240,32 @@ class CloudProxy(Node):
         for cam_id in self.cam_names:
             intrinsics[cam_id] = self.get_cam_intrinsic(cam_id)
         return intrinsics
+    
+    def publish_workspace_transform(self, translation, rotation):
+        """
+        Publish a static transform from fr3_link to workspace_link.
+        
+        :param translation: A tuple (x, y, z) representing the translation
+        :param rotation: A tuple (x, y, z, w) representing the quaternion
+        """
+        print("publishing workspace origin")
+        t = TransformStamped()
+
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'fr3_link'
+        t.child_frame_id = 'workspace_link'
+
+        t.transform.translation.x = translation[0]
+        t.transform.translation.y = translation[1]
+        t.transform.translation.z = translation[2]
+
+        t.transform.rotation.x = rotation[0]
+        t.transform.rotation.y = rotation[1]
+        t.transform.rotation.z = rotation[2]
+        t.transform.rotation.w = rotation[3]
+
+        self.tf_broadcaster.sendTransform(t)
+        
     # ----------------------------Point cloud functions---------------------------
     def transform_cloud_to_base(self, cloud, cam_id):
         rgb_frame = RGB_FRAMES[cam_id]
@@ -261,47 +300,59 @@ class CloudProxy(Node):
             open3d.visualization.draw_geometries([pcd])
         return cloud
     
-    def get_whole_pc_in_robot_frame(self, allow_in_hand=False):
+    def get_whole_pc_in_base_frame(self, include_inhand=False):
         clouds = []
         for cam in self.fixed_cam_names:
             cloud = self.get_pointcloud_in_cam_frame(cam)
             cloud = self.transform_cloud_to_base(cloud, cam)
             clouds.append(cloud)
 
-        if allow_in_hand:
+        cloud_inhand = None
+        if include_inhand:
             cloud_inhand = self.get_pointcloud_in_cam_frame(self.inhand_cam_name)
-            cloud_inhand = self.transform_cloud_to_base(cloud_inhand, 4)
+            cloud_inhand = self.transform_cloud_to_base(cloud_inhand, self.inhand_cam_name)
             clouds.append(cloud_inhand)
 
         cloud = np.concatenate(clouds, axis=0)
-        return cloud
+        return cloud, cloud_inhand
     
-    def get_workspace_pc(self, allow_in_hand=False):
+    def get_workspace_pc(self, clip_pc_size=True, include_inhand=False):
         self.clear_cache()
-        cloud = self.get_whole_pc_in_robot_frame(allow_in_hand)
-        # filter ws x
-        x_cond = (cloud[:, 0] < self.center[0] + self.x_half) * (cloud[:, 0] > self.center[0] - self.x_half)
-        cloud = cloud[x_cond]
-        # filter ws y
-        y_cond = (cloud[:, 1] < self.center[1] + self.y_half) * (cloud[:, 1] > self.center[1] - self.y_half)
-        cloud = cloud[y_cond]
-        # filter ws z
-        z_cond = (cloud[:, 2] < self.center[2].max()) * (cloud[:, 2] > self.z_min)
-        cloud = cloud[z_cond]
+        cloud, cloud_inhand = self.get_whole_pc_in_base_frame(include_inhand)
+        if clip_pc_size:
+            # filter ws x
+            x_cond = (cloud[:, 0] < self.center[0] + self.x_half) * (cloud[:, 0] > self.center[0] - self.x_half)
+            cloud = cloud[x_cond]
+            # filter ws y
+            y_cond = (cloud[:, 1] < self.center[1] + self.y_half) * (cloud[:, 1] > self.center[1] - self.y_half)
+            cloud = cloud[y_cond]
+            # filter ws z
+            z_cond = (cloud[:, 2] < self.center[2].max()) * (cloud[:, 2] > self.z_min)
+            cloud = cloud[z_cond]
+
 
         pcd = open3d.geometry.PointCloud()
         pcd.points = open3d.utility.Vector3dVector(cloud[:,:3])
         cl, ind = pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=3.5)
         cloud = cloud[ind]
 
-        return cloud
+        return cloud, cloud_inhand
     
-    def get_env_screenshot(self, file_name):
+    def update_inhand_extrinsic(self):
+        cam = self.inhand_cam_name
+        self.camera_extrinsics[cam] = None # clear cache
+        extrinsic = self.get_cam_extrinsic(self.inhand_cam_name, self.base_frame)
+        self.camera_extrinsics[cam] = extrinsic
+    
+    
+    
+    def get_env_screenshot(self, file_name, clip_pc_size=True, save_point_cloud=True):
         screenshot = dict()
         # get workspace meta
         screenshot['workspace_size'] = self.workspace
         screenshot['cam_names'] = self.cam_names
         screenshot['enable_inhand'] = self.use_inhand
+        screenshot['base_frame'] = self.base_frame
         # get camera meta
         extrinsic_dict = self.get_all_cam_extrinsic()
         intrinsic_dict = self.get_all_cam_intrinsic()
@@ -311,26 +362,58 @@ class CloudProxy(Node):
         rgb_dict = dict()
         depth_dict = dict()
         for cam in self.cam_names:
+            print(f'getting images from {cam}')
             rgb_dict[cam] = self.get_rgb_image(cam)
             depth_dict[cam] = self.get_depth_image(cam)
+            self.clear_cache()
         screenshot['rgbs'] = rgb_dict
         screenshot['depths'] = depth_dict
         # get workspace pointcloud
-        pc = self.get_workspace_pc()
-        screenshot['point_cloud'] = pc
+        if save_point_cloud:
+            pc, pc_inhand = self.get_workspace_pc(clip_pc_size=clip_pc_size, include_inhand=False)
+            
+            # pcd = open3d.geometry.PointCloud()
+            # pcd.points = open3d.utility.Vector3dVector(pc[:,:3])
+            # pcd.colors = open3d.utility.Vector3dVector(pc[:, 3:6]/255)
+            # open3d.visualization.draw_geometries([pcd])
+            
+            self.clear_cache()
+            screenshot['point_cloud'] = pc
+            screenshot['point_cloud_inhand'] = pc_inhand
         # save
         np.save(file_name, screenshot)
         
     
-def main(args=None):
+def manual_tim_collection(args=None):
+    rclpy.init(args=args)
+    workspace_size = np.array([[0.3, 0.7],
+                        [-0.2, 0.2],
+                        [-0.02, 1.0]]) 
+    cloud_proxy = CloudProxy(workspace_size=workspace_size, use_inhand=True, base_frame='workspace_link')
+    image_index = 0
+    try:
+        while True:
+            cloud_proxy.get_env_screenshot(f'tim_1109_{image_index}.npy')
+            image_index += 1
+            a = input("press enter to continue and e to stop")
+            if a == 'e':
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # this is needed because of ROS2 mechanism.
+        # without destroy_node(), it somehow wont work if you restart the program
+        cloud_proxy.destroy_node()
+        rclpy.shutdown()
+
+def get_screenshot(args=None):
     rclpy.init(args=args)
     workspace_size = np.array([[0.3, 0.7],
                         [-0.2, 0.2],
                         [-0.02, 1.0]]) 
     cloud_proxy = CloudProxy(workspace_size=workspace_size, use_inhand=False)
-
     try:
-        cloud_proxy.get_env_screenshot('screenshot.npy')
+        cloud_proxy.get_env_screenshot('1109.npy')
         print(1)
     except KeyboardInterrupt:
         pass
@@ -339,6 +422,6 @@ def main(args=None):
         # without destroy_node(), it somehow wont work if you restart the program
         cloud_proxy.destroy_node()
         rclpy.shutdown()
-        
+             
 if __name__ == '__main__':
-    main()
+    manual_tim_collection()
