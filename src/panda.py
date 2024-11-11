@@ -121,9 +121,7 @@ def main(args=None):
     rclpy.init(args=args)
     
     node = PandaArmControl()
-    node.init_scene()
-
-    
+    # node.init_scene()
 
     node.destroy_node()
     rclpy.shutdown()
