@@ -14,7 +14,9 @@ import open3d
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 import copy
+import cv2
 
+IMAGE_HEIGHT, IMAGE_WIDTH = 480, 640
 CAM_INDEX_MAP = {
             'bob': 0,
             'kevin': 1,
@@ -67,7 +69,10 @@ class CloudProxy(Node):
         self.inhand_cam_name = 'tim'
         self.cam_names = copy.copy(self.fixed_cam_names)
         if use_inhand:
+            print("Inhand camera activated")
             self.cam_names.append(self.inhand_cam_name)
+        else:
+            print("Inhand camera not activated")
         self.base_frame = base_frame
         self.use_inhand = use_inhand
 
@@ -190,13 +195,14 @@ class CloudProxy(Node):
         self.depth_images[cam_index] = None
     
     def clear_cache(self):
+        self.spin_for_30_times()
         self.depth_images = [None] * len(self.cam_names)
         self.rgb_images = [None] * len(self.cam_names)
         if self.use_inhand:
             self.camera_extrinsics = dict()
             self.look_and_set_extrinsics(self.base_frame)
             time.sleep(0.5)
-            self.spin_for_30_times()
+        self.spin_for_30_times()
         
     def transform(self, cloud, T, isPosition=True):
         '''Apply the homogeneous transform T to the point cloud. Use isPosition=False if transforming unit vectors.'''
@@ -273,6 +279,87 @@ class CloudProxy(Node):
         t.transform.rotation.w = rotation[3]
 
         self.tf_broadcaster.sendTransform(t)
+    
+    def mask_out_photo(self, photo: np.ndarray, point_cloud: np.ndarray, intrinsics: np.ndarray, extrinsics: np.ndarray) -> np.ndarray:
+        """
+        Masks out pixels in the photo that do not project onto any point in the point cloud.
+        Parameters:
+            photo (np.ndarray): RGB image array of shape (height, width, 3).
+            point_cloud (np.ndarray): Array of 3D points of shape (N, 3), where N is the number of points.
+            intrinsics (np.ndarray): 3x3 camera intrinsic matrix.
+            extrinsics (np.ndarray): 4x4 camera extrinsic matrix.
+        Returns:
+            np.ndarray: Masked photo with unprojected areas set to black.
+        """
+        extrinsics = np.linalg.inv(extrinsics)
+        # Get image dimensions
+        height, width, _ = photo.shape
+        # Initialize a black mask
+        mask = np.zeros((height, width), dtype=np.uint8)
+        # Convert each 3D point to homogeneous coordinates (N, 4)
+        point_cloud_h = np.hstack((point_cloud, np.ones((point_cloud.shape[0], 1))))
+        # Transform points to camera coordinates using extrinsics (4x4)
+        camera_coords = (extrinsics @ point_cloud_h.T).T  # Result is (N, 4)
+        # Keep only points in front of the camera (where Z > 0)
+        valid_points = camera_coords[:, 2] > 0
+        camera_coords = camera_coords[valid_points]
+        # Project to image plane using intrinsics
+        image_coords = (intrinsics @ camera_coords[:, :3].T).T  # Result is (N, 3)
+        # Normalize by the depth (Z-coordinate)
+        u = (image_coords[:, 0] / image_coords[:, 2]).astype(int)
+        v = (image_coords[:, 1] / image_coords[:, 2]).astype(int)
+        # Filter points that fall within the image boundaries
+        valid_pixels = (0 <= u) & (u < width) & (0 <= v) & (v < height)
+        u, v = u[valid_pixels], v[valid_pixels]
+        # Set valid pixels in the mask to white (255)
+        mask[v, u] = 255
+        # Create a 3-channel mask for the RGB photo
+        mask_3ch = cv2.merge([mask, mask, mask])
+        # Apply the mask to the photo, setting unprojected pixels to black
+        masked_photo = np.where(mask_3ch == 255, photo, 0)
+        return masked_photo
+
+    def project_pointcloud_to_image(self, pointcloud, intrinsics, extrinsics, image_width, image_height):
+        """
+        Project an xyzrgb point cloud onto a 2D image plane using camera intrinsics and extrinsics.
+        Args:
+            pointcloud (np.ndarray): Nx6 array with columns representing x, y, z, r, g, b.
+            intrinsics (np.ndarray): 3x3 camera intrinsics matrix.
+            extrinsics (np.ndarray): 4x4 camera extrinsics matrix.
+            image_width (int): Width of the output image.
+            image_height (int): Height of the output image.
+        Returns:
+            np.ndarray: 2D RGB image array with projected point cloud colors.
+        """
+        extrinsics = np.linalg.inv(extrinsics)
+        # Separate xyz and rgb data
+        xyz = pointcloud[:, :3]  # Nx3
+        rgb = pointcloud[:, 3:6]  # Nx3
+        # Transform xyz coordinates using the extrinsics to the camera coordinate system
+        # Add a column of ones for homogeneous coordinates
+        xyz_h = np.hstack((xyz, np.ones((xyz.shape[0], 1))))  # Nx4
+        xyz_camera = (extrinsics @ xyz_h.T).T  # Nx4
+        # Discard points behind the camera
+        valid_points = xyz_camera[:, 2] > 0
+        xyz_camera = xyz_camera[valid_points]
+        rgb = rgb[valid_points]
+        # Project the 3D points onto the 2D image plane using the intrinsics
+        xy_image = (intrinsics @ xyz_camera[:, :3].T).T  # Nx3
+        # Normalize by the z coordinate to get pixel coordinates
+        xy_image /= xy_image[:, 2:3]
+        # Round to nearest integer pixel coordinates
+        x_pixels = np.round(xy_image[:, 0]).astype(int)
+        y_pixels = np.round(xy_image[:, 1]).astype(int)
+        # Initialize an empty image
+        image = np.zeros((image_height, image_width, 3), dtype=np.uint8)
+        # Filter points that fall within the image bounds
+        valid_indices = (x_pixels >= 0) & (x_pixels < image_width) & (y_pixels >= 0) & (y_pixels < image_height)
+        x_pixels = x_pixels[valid_indices]
+        y_pixels = y_pixels[valid_indices]
+        rgb = rgb[valid_indices]
+        # Map rgb values to image pixels
+        image[y_pixels, x_pixels] = rgb.astype(np.uint8)
+        return image
         
     # ----------------------------Point cloud functions---------------------------
     def transform_cloud_to_base(self, cloud, cam_id):
@@ -316,7 +403,7 @@ class CloudProxy(Node):
             clouds.append(cloud)
 
         cloud_inhand = None
-        if get_inhand:
+        if get_inhand and self.use_inhand:
             self.update_inhand_extrinsic()
             cloud_inhand = self.get_pointcloud_in_cam_frame(self.inhand_cam_name)
             cloud_inhand = self.transform_cloud_to_base(cloud_inhand, self.inhand_cam_name)
@@ -361,8 +448,10 @@ class CloudProxy(Node):
     
     
     
-    def get_env_screenshot(self, file_name, clip_pc_size=True, save_point_cloud=True):
-        self.clear_cache()
+    def get_env_screenshot(self, file_name=None, clip_pc_size=True, save_point_cloud=True):
+        for _ in range(2):
+            self.clear_cache()
+            
         screenshot = dict()
         # get workspace meta
         screenshot['workspace_size'] = self.workspace
@@ -377,27 +466,38 @@ class CloudProxy(Node):
         # get multiview images
         rgb_dict = dict()
         depth_dict = dict()
+        
         for cam in self.cam_names:
             print(f'getting images from {cam}')
             rgb_dict[cam] = self.get_rgb_image(cam)
             depth_dict[cam] = self.get_depth_image(cam)
-            # self.clear_cache()
         screenshot['rgbs'] = rgb_dict
         screenshot['depths'] = depth_dict
         # get workspace pointcloud
+        pc_dict = dict()
         if save_point_cloud:
-            pc, pc_inhand = self.get_workspace_pc(clip_pc_size=clip_pc_size, get_inhand=True)
+            pc_dict['fix'], pc_dict['inhand'] = self.get_workspace_pc(clip_pc_size=clip_pc_size, get_inhand=False)
+            mask_rgb_dict = dict()
+            for cam in self.cam_names:
+                # mask_rgb[cam] = self.project_pointcloud_to_image(pc_inhand, intrinsic_dict[cam], extrinsic_dict[cam], IMAGE_WIDTH, IMAGE_HEIGHT)
+                cloud_type = 'inhand' if cam == self.inhand_cam_name else 'fix'
+                mask_rgb_dict[cam] = self.mask_out_photo(rgb_dict[cam], pc_dict[cloud_type][:,:3], intrinsic_dict[cam], extrinsic_dict[cam])
             
-            pcd = open3d.geometry.PointCloud()
-            pcd.points = open3d.utility.Vector3dVector(pc_inhand[:,:3])
-            pcd.colors = open3d.utility.Vector3dVector(pc_inhand[:, 3:6]/255)
-            open3d.visualization.draw_geometries([pcd])
+            # if file_name is not None:
+            #     pcd = open3d.geometry.PointCloud()
+            #     pcd.points = open3d.utility.Vector3dVector(pc_dict['inhand'][:,:3])
+            #     pcd.colors = open3d.utility.Vector3dVector(pc_dict['inhand'][:, 3:6]/255)
+            #     open3d.visualization.draw_geometries([pcd])
+                
             
-            
-            screenshot['point_cloud'] = pc
-            screenshot['point_cloud_inhand'] = pc_inhand
-        # save
-        np.save(file_name, screenshot)
+            screenshot['point_cloud'] = pc_dict['fix']
+            screenshot['point_cloud_inhand'] = pc_dict['inhand']
+            screenshot['mask_rgb'] = mask_rgb_dict
+
+
+        if file_name is not None:
+            # save
+            np.save(file_name, screenshot)
         
     
 def manual_tim_collection(args=None):
@@ -409,7 +509,8 @@ def manual_tim_collection(args=None):
     image_index = 0
     try:
         while True:
-            cloud_proxy.get_env_screenshot(f'tim_1109_{image_index}.npy')
+            # cloud_proxy.get_env_screenshot()
+            cloud_proxy.get_env_screenshot(f'tim_1111_{image_index}.npy')
             image_index += 1
             a = input("press enter to continue and e to stop")
             if a == 'e':
@@ -422,14 +523,14 @@ def manual_tim_collection(args=None):
         cloud_proxy.destroy_node()
         rclpy.shutdown()
 
-def get_screenshot(args=None):
+def get_screenshot(args=None,):
     rclpy.init(args=args)
     workspace_size = np.array([[0.3, 0.7],
                         [-0.2, 0.2],
                         [-0.02, 1.0]]) 
     cloud_proxy = CloudProxy(workspace_size=workspace_size, use_inhand=False)
     try:
-        cloud_proxy.get_env_screenshot('1109.npy')
+        cloud_proxy.get_env_screenshot('skye_bowl_mug_grasped_final.npy')#'1109.npy'
         print(1)
     except KeyboardInterrupt:
         pass
@@ -440,4 +541,5 @@ def get_screenshot(args=None):
         rclpy.shutdown()
              
 if __name__ == '__main__':
-    manual_tim_collection()
+    get_screenshot()
+    #manual_tim_collection()
