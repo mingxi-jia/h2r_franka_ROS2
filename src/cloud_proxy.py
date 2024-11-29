@@ -317,7 +317,7 @@ class CloudProxy(Node):
         mask_3ch = cv2.merge([mask, mask, mask])
         # Apply the mask to the photo, setting unprojected pixels to black
         masked_photo = np.where(mask_3ch == 255, photo, 0)
-        return masked_photo
+        return masked_photo, mask
 
     def project_pointcloud_to_image(self, pointcloud, intrinsics, extrinsics, image_width, image_height):
         """
@@ -478,10 +478,11 @@ class CloudProxy(Node):
         if save_point_cloud:
             pc_dict['fix'], pc_dict['inhand'] = self.get_workspace_pc(clip_pc_size=clip_pc_size, get_inhand=False)
             mask_rgb_dict = dict()
+            mask_dict = dict()
             for cam in self.cam_names:
                 # mask_rgb[cam] = self.project_pointcloud_to_image(pc_inhand, intrinsic_dict[cam], extrinsic_dict[cam], IMAGE_WIDTH, IMAGE_HEIGHT)
                 cloud_type = 'inhand' if cam == self.inhand_cam_name else 'fix'
-                mask_rgb_dict[cam] = self.mask_out_photo(rgb_dict[cam], pc_dict[cloud_type][:,:3], intrinsic_dict[cam], extrinsic_dict[cam])
+                mask_rgb_dict[cam], mask_dict[cam] = self.mask_out_photo(rgb_dict[cam], pc_dict[cloud_type][:,:3], intrinsic_dict[cam], extrinsic_dict[cam])
             
             # if file_name is not None:
             #     pcd = open3d.geometry.PointCloud()
@@ -493,6 +494,7 @@ class CloudProxy(Node):
             screenshot['point_cloud'] = pc_dict['fix']
             screenshot['point_cloud_inhand'] = pc_dict['inhand']
             screenshot['mask_rgb'] = mask_rgb_dict
+            screenshot['mask'] = mask_dict
 
 
         if file_name is not None:
