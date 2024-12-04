@@ -7,7 +7,6 @@ from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 import numpy as np
 import tf2_ros
-import tf_transformations
 from geometry_msgs.msg import TransformStamped
 import time
 import open3d 
@@ -15,6 +14,7 @@ from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 import copy
 import cv2
+from scipy.spatial.transform import Rotation
 
 from configs.camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_INDEX_MAP, TOPICS_DEPTH, TOPICS_RGB,
                                     RGB_FRAMES, TOPICS_CAM_INFO)
@@ -48,7 +48,7 @@ class CloudProxy(Node):
             self.create_subscription(Image, depth_topic, lambda msg, idx=i: self.depth_callback(msg, idx), 10)
             info_topic = TOPICS_CAM_INFO[cam]
             self.create_subscription(CameraInfo, info_topic, lambda msg, idx=i: self.info_callback(msg, idx), 10)
-        
+        # (self, PoseStamped, '/franka_robot_state_broadcaster/current_pose')
 
         self.workspace = workspace_size
         self.center = self.workspace.mean(-1) if base_frame=='fr3_link0' else np.array([0., 0., self.workspace.mean(-1)[-1]])
@@ -57,7 +57,7 @@ class CloudProxy(Node):
         self.y_size = self.workspace[1].max() - self.workspace[1].min()
         self.y_half = self.y_size / 2
         self.z_min = self.workspace[2].min()
-
+        
         # Transform listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread = True)
@@ -134,6 +134,11 @@ class CloudProxy(Node):
             raise NotImplementedError(f"Camera ID {cam_id} not supported")
         
         rgb_frame = RGB_FRAMES[cam_id]
+        # print(cam_id)
+        # print(self.use_inhand)
+        # print(base_frame)
+        # print(rgb_frame)
+        # exit(0)
         T = self.lookup_transform(rgb_frame, base_frame)
         print(f"got {cam_id} pose.")
         return T
@@ -190,7 +195,8 @@ class CloudProxy(Node):
             try:
                 transformMsg = self.tf_buffer.lookup_transform(toFrame, fromFrame, lookupTime, Duration(seconds=1))
                 keep_trying = False
-            except:
+            except Exception as e:
+                print(e)
                 rclpy.spin_once(self, timeout_sec=1)
                 
         
@@ -198,7 +204,9 @@ class CloudProxy(Node):
         pos = [translation.x, translation.y, translation.z]
         rotation = transformMsg.transform.rotation
         quat = [rotation.x, rotation.y, rotation.z, rotation.w]
-        T = tf_transformations.quaternion_matrix(quat)
+        T = np.eye(4)
+        R = Rotation.from_quat(quat).as_matrix()
+        T[:3, :3] = R
         T[0:3, 3] = pos
         return T
     
