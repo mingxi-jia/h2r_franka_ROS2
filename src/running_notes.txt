@@ -1,0 +1,8 @@
+To connect remotely to your computer, run:
+    sudo openvpn ~/Downloads/rthomp12_browncs.ovpn
+
+To collect demos, in a separate window run: 
+to turn on the robot: ros2_launch franka_bringup franka.launch.py arm_id:= fr3 robot_ip:=172.16.0.2 use_rviz=true
+    to turn on cameras:  ros2 launch launch/launch_all_cameras.launch.py
+    to close the gripper: ros2 action send_goal /fr3_gripper/grasp franka_msgs/action/Grasp "{width:0.0, speed: 0.3, force:75, epsilon: {inner: 0.02, outer: 0.02}}"
+    to open the gripper: ros2 action send_goal /fr3_gripper/homing franka_msgs/action/Homing {}
