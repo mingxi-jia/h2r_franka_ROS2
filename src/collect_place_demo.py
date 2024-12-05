@@ -68,9 +68,3 @@ if __name__ == "__main__":
     pose_subscriber.destroy_node()
     cloud_proxy.destroy_node()
     rclpy.shutdown()
-
-
-
-
-    # save
-
