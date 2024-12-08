@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
+
+
+import tf2_ros
+from tf2_ros import TransformBroadcaster
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import Pose, Twist, PoseStamped, TwistStamped, TransformStamped
+from message_filters import Subscriber, ApproximateTimeSynchronizer
+
+import copy
+import cv2
+import time
+import open3d 
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+from configs.gem_camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_INDEX_MAP, TOPICS_DEPTH, TOPICS_RGB,
+                                    RGB_FRAMES, TOPICS_CAM_INFO, BASE_FRAME, INHAND_CAMERA_NAME)
+
+class CloudSynchronizer(Node):
+    def __init__(self):
+        super().__init__('cloud_synchronizer')
+
+        self.collect_freq = 1.
+        self.time_diff = 1. / self.collect_freq
+
+        self.ee_pose = None
+        self.camera_intrinsics = dict()
+        self.camera_extrinsics = dict()
+        self.rgb_dict = dict()
+        self.depth_dict = dict()
+
+        # Define camera names
+        self.camera_names = list(TOPICS_CAM_INFO.keys())  # Add all camera names here
+        self.camera_names.sort()
+
+        # Synchronizer
+        self.rgb_subs = []
+        self.depth_subs = []
+        for camera_name in self.camera_names:
+            rgb_sub = Subscriber(self, Image, TOPICS_RGB[camera_name])
+            depth_sub = Subscriber(self, Image, TOPICS_DEPTH[camera_name])
+            self.rgb_subs.append(rgb_sub)
+            self.depth_subs.append(depth_sub)
+
+            info_topic = TOPICS_CAM_INFO[camera_name]
+            self.camera_intrinsics[camera_name] = None
+            self.camera_extrinsics[camera_name] = None
+            self.rgb_dict[camera_name] = None
+            self.depth_dict[camera_name] = None
+            self.create_subscription(CameraInfo, info_topic, lambda msg, cam=camera_name: self.info_callback(msg, cam), 10)
+
+        self.pose_sub = Subscriber(self, PoseStamped, '/franka_robot_state_broadcaster/current_pose')
+        self.get_logger().info("All data subscriber ready.")
+
+        all_subscribers = self.rgb_subs + self.depth_subs + [self.pose_sub]
+        self.ts = ApproximateTimeSynchronizer(
+            all_subscribers,
+            queue_size=20,          
+            slop=self.time_diff
+        )
+        self.ts.registerCallback(self.sync_callback)
+        self.get_logger().info("Data Synchronizer ready.")
+        
+        # Transform listener
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread = True)
+
+        self.bridge = CvBridge()
+
+        self.get_logger().info("Initializing camera poses.")
+        self.camera_extrinsics: dict = self.get_all_camera_extrinsics()
+        self.get_logger().info("Initializing camera intrinsics.")
+        self.camera_intrinsics: dict = self.get_all_camera_intrinsics()
+
+    def sync_callback(self, *args):
+        num_cameras = len(self.camera_names)
+        rgb_images = args[:num_cameras]
+        depth_images = args[num_cameras:num_cameras * 2]
+        pose_msg: PoseStamped = args[-1]
+        pose = pose_msg.pose
+
+        # Process camera data
+        rgb_data, depth_data = dict(), dict()
+        for i, camera_name in enumerate(self.camera_names):
+            rgb_data[camera_name] = np.array(rgb_images[i].data).reshape((rgb_images[i].height, rgb_images[i].width, -1))
+            depth_data[camera_name] = self.bridge.imgmsg_to_cv2(depth_images[i], "16UC1").astype(np.float32) / 1000
+
+
+        self.rgb_dict = rgb_data
+        self.depth_dict = depth_data
+        self.ee_pose = {'xyz_RT_base': [pose.position.x, pose.position.y, pose.position.z],
+                        'qxqyqzqw_RT_base': [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]}
+        
+        # self.get_logger().info("Synchronized data step updated.")
+
+    
+    # ----------------------------Basic Camera functions---------------------------
+    # ----------------------------Extrinsics
+    def lookup_transform(self, fromFrame, toFrame, lookupTime=Time(seconds=0)):
+        """
+        Lookup a transform in the TF tree.for instruction in instructions:
+        :param fromFrame: the frame from which the transform is calculated
+        :type fromFrame: string
+        :param toFrame: the frame to which the transform is calculated
+        :type toFrame: string
+        :return: transformation matrix from fromFrame to toFrame
+        :rtype: 4x4 np.array
+        """
+        keep_trying = True
+        while keep_trying:
+            try:
+                transformMsg = self.tf_buffer.lookup_transform(toFrame, fromFrame, lookupTime, Duration(seconds=1))
+                keep_trying = False
+            except:
+                rclpy.spin_once(self, timeout_sec=1)
+                
+        translation = transformMsg.transform.translation
+        pos = [translation.x, translation.y, translation.z]
+        rotation = transformMsg.transform.rotation
+        quat = [rotation.x, rotation.y, rotation.z, rotation.w]
+        
+        transform = np.eye(4)
+        transform[:3, 3] = np.array(pos)
+        transform[:3, :3] = R.from_quat(quat).as_matrix()
+        return transform
+    
+    def get_camera_extrinsics(self, camera_name):
+        extrinsic = self.lookup_transform(f'{camera_name}_link', 
+                                          BASE_FRAME
+                                          )
+        return extrinsic
+
+    def get_all_camera_extrinsics(self):
+        for cam in self.camera_names:
+            self.get_logger().info(f"Initializing {cam} pose.")
+            self.camera_intrinsics[cam] = self.get_camera_extrinsics(cam)
+        return self.camera_intrinsics[cam]
+    
+    def update_inhand_extrinsic(self):
+        cam = INHAND_CAMERA_NAME
+        extrinsic = self.get_camera_extrinsics(INHAND_CAMERA_NAME, BASE_FRAME)
+        self.camera_extrinsics[cam] = extrinsic
+    
+    # ----------------------------Intrinsics
+
+    def info_callback(self, msg, camera_name):
+        self.camera_intrinsics[camera_name] = np.array(msg.k).reshape(3,3)
+        
+    def get_cam_intrinsic(self, camera_name):
+        if camera_name not in self.camera_names:
+            raise NotImplementedError(f"Camera ID {camera_name} not supported")
+        
+        while self.camera_intrinsics[camera_name] is None:
+            rclpy.spin_once(self, timeout_sec=0.01)
+        intrinsics = self.camera_intrinsics[camera_name]
+        return intrinsics
+    
+    def get_all_camera_intrinsics(self):
+        for cam in self.camera_names:
+            self.get_logger().info(f"Initializing {cam} intrinsics.")
+            self.camera_intrinsics[cam] = self.get_cam_intrinsic(cam)
+        return self.camera_intrinsics
+    
+    #--------------------------EE POSE
+    def get_ee_pose(self):
+        return self.ee_pose
+    
+    #-------------------------OBSERVATION
+    def get_raw_rgbs(self):
+        return self.rgb_dict
+
+    def get_raw_depths(self):
+        return self.depth_dict
+    
+    # def get_cam_extrinsic(self, cam_id, base_frame):
+    #     if cam_id not in CAM_INDEX_MAP:
+    #         raise NotImplementedError(f"Camera ID {cam_id} not supported")
+        
+    #     rgb_frame = RGB_FRAMES[cam_id]
+    #     T = self.lookup_transform(rgb_frame, base_frame)
+    #     print(f"got {cam_id} pose.")
+    #     return T
+    
+    # def look_and_set_extrinsics(self, base_frame=None):
+    #     if base_frame is None:
+    #         base_frame = self.base_frame
+    #     print(f"init: getting camera extrinsics in frame {base_frame}")
+    #     camera_extrinsics = dict()
+    #     for cam in self.cam_names:
+    #         extrinsic = self.get_cam_extrinsic(cam, base_frame)
+    #         camera_extrinsics[cam] = extrinsic
+    #     return camera_extrinsics
+    
+    # ----------------------------Util functions---------------------------
+
+    def clear_cache(self):
+        for camera_name in self.camera_names:
+            self.rgb_dict[camera_name] = None
+            self.depth_dict[camera_name] = None
+    
+    
+             
+if __name__ == '__main__':
+    pass
