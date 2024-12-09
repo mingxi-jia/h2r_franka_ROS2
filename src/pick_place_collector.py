@@ -18,6 +18,11 @@ def save_npy_data(root_path, modality: str, data: np.array):
     np.save(os.path.join(root_path, f"{modality}.npy"), data)
 
 def save_dict_data(root_path, modality: str, data: dict):
+    # convert numpy array to list
+    for key, value in data.items():
+        if isinstance(value, (np.ndarray)):
+            data[key] = value.tolist()
+
     yaml_file = os.path.join(root_path, f"{modality}.yaml")
     with open(yaml_file, 'w') as outfile:
         yaml.dump(data, outfile, default_flow_style=False)
@@ -83,10 +88,14 @@ class PickPlaceCollector():
                     save_dict_data(self.episode_path, "place_pose", ee_pose)
                     # self.open_gripper()
                 elif key.char == '=':  # continue
-                    self.index += 1
-                    self.episode_path = os.path.join(self.dataset_path, f"demo_{self.index}")
-                    os.makedirs(self.episode_path, exist_ok=True)
-                    print("save demo.")
+                    valid = self.check_valid_previous_demo()
+                    if valid:
+                        self.index += 1
+                        self.episode_path = os.path.join(self.dataset_path, f"demo_{self.index}")
+                        os.makedirs(self.episode_path, exist_ok=True)
+                        print("save demo.")
+                    else:
+                        print("The previous demo is not completes. Either lack of obs or actions. Failed to continue.")
                 
             except AttributeError:
                 pass
@@ -96,6 +105,11 @@ class PickPlaceCollector():
         with keyboard.Listener(on_press=on_press) as listener:
             listener.join()
 
+    def check_valid_previous_demo(self):
+        is_valid_images = os.path.exists(os.path.join(self.episode_path, "rgb_kevin.png"))
+        is_valid_pick = os.path.exists(os.path.join(self.episode_path, "pick_pose.yaml"))
+        is_valid_place = os.path.exists(os.path.join(self.episode_path, "place_pose.yaml"))
+        return is_valid_images and is_valid_pick and is_valid_place
 
     def save_observation(self, rgbs: dict, depths: dict):
         try:
@@ -110,9 +124,9 @@ class PickPlaceCollector():
                 np.save(os.path.join(self.episode_path, f"depth_{cam}_raw.npy"), depth)
 
                 # store depth visulization
-                depth_min, depth_max = 0., 2.
+                depth_min, depth_max = 0., 1.3
                 depth = np.clip(depth, depth_min, depth_max)
-                depth = np.asarray(depth / 2.0 * 255., dtype=np.uint8)
+                depth = np.asarray(depth / depth_max * 255., dtype=np.uint8)
                 depth = Image.fromarray(depth)
                 depth.save(os.path.join(self.episode_path, f"depth_{cam}_0to2m.png"))
             return True
@@ -127,7 +141,7 @@ class PickPlaceCollector():
         print("'p' - Save sensor inputs (RGB, Depth) and task instructions")
         print("'1' - Save pick location")
         print("'2' - Save place location")
-        print("'c' - Move to the next demo/episode")
+        print("'=' - Move to the next demo/episode")
         print("'Ctrl+C' - Exit and save dataset information")
         while True:
             time.sleep(0.5)  # Keeps the loop alive and lets the threads work

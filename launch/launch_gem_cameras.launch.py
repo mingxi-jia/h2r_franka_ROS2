@@ -16,7 +16,7 @@ def generate_launch_description():
                 namespace='kevin',
                 parameters=[{
                     'serial_no': 'f1420123',
-                    'depth_module.profile': 'fps',
+                    'depth_module.profile': f'{img_width}x{img_height}x{fps}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{fps}',
                     'enable_infra': False, 
                     'enable_infra1': False,
@@ -45,6 +45,7 @@ def generate_launch_description():
                 namespace='bob',
                 parameters=[{
                     'serial_no': '234322306820',
+                    'depth_module.visual_preset': 1,
                     'depth_module.profile': f'{img_width}x{img_height}x{fps}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{fps}',
                     'enable_infra': False, 
@@ -75,6 +76,7 @@ def generate_launch_description():
                 namespace='mel',
                 parameters=[{
                     'serial_no': '239222303414',
+                    'depth_module.visual_preset': 1,
                     'depth_module.profile': f'{img_width}x{img_height}x{fps}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{fps}',
                     'enable_infra': False, 

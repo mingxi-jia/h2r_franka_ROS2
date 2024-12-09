@@ -131,7 +131,7 @@ class CloudSynchronizer(Node):
         return transform
     
     def get_camera_extrinsics(self, camera_name):
-        extrinsic = self.lookup_transform(f'{camera_name}_link', 
+        extrinsic = self.lookup_transform(RGB_FRAMES[camera_name], 
                                           BASE_FRAME
                                           )
         return extrinsic
@@ -140,7 +140,7 @@ class CloudSynchronizer(Node):
         for cam in self.camera_names:
             self.get_logger().info(f"Initializing {cam} pose.")
             self.camera_intrinsics[cam] = self.get_camera_extrinsics(cam)
-        return self.camera_intrinsics[cam]
+        return self.camera_intrinsics
     
     def update_inhand_extrinsic(self):
         cam = INHAND_CAMERA_NAME
@@ -204,7 +204,17 @@ class CloudSynchronizer(Node):
             self.rgb_dict[camera_name] = None
             self.depth_dict[camera_name] = None
     
-    
+
+def main():
+    rclpy.init()
+    collector = CloudSynchronizer()
+    try:
+        rclpy.spin(collector)
+    except (KeyboardInterrupt):
+        pass
+    finally:
+        collector.destroy_node()
+        rclpy.shutdown()   
              
 if __name__ == '__main__':
-    pass
+    main()

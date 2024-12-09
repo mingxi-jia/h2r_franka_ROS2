@@ -16,7 +16,7 @@ def generate_launch_description():
                 namespace='kevin',
                 parameters=[{
                     'serial_no': 'f1420123',
-                    'depth_module.profile': 'fps',
+                    'depth_module.profile': f'{img_width}x{img_height}x{fps}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{fps}',
                     'enable_infra': False, 
                     'enable_infra1': False,

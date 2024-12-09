@@ -15,7 +15,8 @@ def generate_launch_description():
                 name='dave_camera',
                 namespace='dave',
                 parameters=[{
-                    'serial_no': '239222303046',
+                    'serial_no': '239222303046', #lower one
+                    # 'serial_no': '239222300816',
                     'depth_module.profile': f'{img_width}x{img_height}x{hz}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{hz}',
                     'enable_infra': False, 
@@ -28,7 +29,7 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_white_balance': False,
                     'rgb_camera.white_balance':3182.0,
                     'depth_module.exposure':14725,
-                    'rgb_camera.exposure':120,
+                    'rgb_camera.exposure':130,
                     'align_depth.enable': True,
                     'depth_width': img_width,
                     'depth_height': img_height,
