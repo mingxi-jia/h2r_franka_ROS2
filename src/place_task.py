@@ -1,3 +1,4 @@
+
 from execution import Executor
 import time
 import rclpy
@@ -39,7 +40,6 @@ if __name__ == "__main__":
     # parser.add_argument('--transform',   required=True, type=list, help='Final end effector transform')
     # parser.add_argument('--parent_mesh',  required=True, type=str, help="filename of parent object mesh")
     # parser.add_argument('--child_mesh',  required=True, type=str, help="filename of child object mesh")
-
 
     rclpy.init(args=None)
     panda = Executor('mel')
@@ -126,7 +126,5 @@ if __name__ == "__main__":
     
 
     #input("Record final state - press enter to finish")
-
-
 
 
