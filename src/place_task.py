@@ -8,11 +8,12 @@ from scipy.spatial.transform import Rotation
 from rclpy.node import Node
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped
-class MarkerPublisher(Node):
 
+
+class PosePublisher(Node):
     def __init__(self):
-        super().__init__('marker_publisher')
-        self.publisher_ = self.create_publisher(PoseStamped, 'grasp_vizualization', 1)
+        super().__init__('grasp_pose_publisher')
+        self.publisher_ = self.create_publisher(PoseStamped, 'grasp_pose_vizualization', 1)
         self.i=0
 
     def publish_grasp_pose(self, pose):
@@ -33,6 +34,30 @@ class MarkerPublisher(Node):
         self.publisher_.publish(msg)
         self.get_logger().info('Publishing pose')
 
+def translateFrameNegativeZ(grasp_pose, dist):
+    translated_pose = copy.deepcopy(grasp_pose)
+    dist_to_move_in_cloud_frame = -1*np.matmul(grasp_pose, np.array([0, 0, dist, 0]))
+    translated_pose[:3, 3] += dist_to_move_in_cloud_frame[:3]
+    return translated_pose
+
+# def visualizeGraspPoses(pcd, grasp_poses):
+#     # Given a 4x4 transformation matrix, create coordinate frame mesh at the pose
+#     #     and scale down.
+#     def o3dTFAtPose(pose, scale_down=10):
+#         axes = o3d.geometry.TriangleMesh.create_coordinate_frame()
+#         scaling_maxtrix = np.ones((4,4))
+#         scaling_maxtrix[:3, :3] = scaling_maxtrix[:3, :3]/scale_down
+#         scaled_pose = pose*scaling_maxtrix
+#         axes.transform(scaled_pose)
+#         return axes
+#     world_frame_axes = o3dTFAtPose(np.eye(4))
+#     models = [world_frame_axes, pcd]
+#     for grasp_pose in grasp_poses:
+#         grasp_axes = o3dTFAtPose(grasp_pose, scale_down=100)
+#         models.append(grasp_axes)
+
+#     o3d.visualization.draw_geometries(models)
+
 
 
 if __name__ == "__main__":
@@ -43,26 +68,38 @@ if __name__ == "__main__":
 
     rclpy.init(args=None)
     panda = Executor('mel')
-    marker_publisher = MarkerPublisher()
+    marker_publisher = PosePublisher()
     try:
         grasp_mat = np.array([[-0.01545242, -0.9881252,   0.15287187,  0.6008789 ],
                         [ 0.13703788, -0.1535403,  -0.97859389, -0.03792574],
                         [ 0.99044527,  0.00582759,  0.13778315,  0.07050603],
                         [ 0.,          0.,          0.,          1.        ]])
-        
+
+
+        pregrasp_mat = translateFrameNegativeZ(grasp_pose, .15)
+
+        # To adapt the grasps for this specific type of gripper
         fixed_grasp_transform  = Rotation.from_euler( 'yxz', [np.pi/2, np.pi/2, 0])
-        grasp_rot =Rotation.from_matrix(np.matmul(fixed_grasp_transform.as_matrix(), grasp_mat[:3, :3],))
+        grasp_rot = Rotation.from_matrix(np.matmul(fixed_grasp_transform.as_matrix(), grasp_mat[:3, :3],))
+        grasp_transform = np.concatenate([grasp_mat[:3, 3:].T[0], grasp_rot.as_quat()]) 
+        pregrasp_transform = np.concatenate([pregrasp_mat[:3, 3:].T[0], grasp_rot.as_quat()]) 
+        postgrasp_transform = np.concatenate([grasp_mat[:3, 3:].T[0], grasp_rot.as_quat()])
+        postgrasp_transform[2] += .05 
 
-        grasp_transform = np.concatenate([grasp_mat[:3, 3:].T[0], grasp_rot.as_quat()])#make one up by moving the gripper a bit from where it currently is
-
-        #TODO: add code for pregrasp transform step
-        #TODO: add sequence of commands for grasp
-        grasp_transform[2] += .3
+        marker_publisher.publish_grasp_pose(pregrasp_transform)
+        input("Check the pregrasp - press enter to execute on the real robot")
+        panda.move_robot(pregrasp_transform[:3], pregrasp_transform[3:], 1)
 
         marker_publisher.publish_grasp_pose(grasp_transform)
-    
-        input("Check the plan - press enter to execute on the real robot")
+        input("Check the grasp - press enter to execute on the real robot")
+
         panda.move_robot(grasp_transform[:3], grasp_transform[3:], 0)
+        
+        input("Going to postgrasp for segmentation- press enter to execute on the real robot")
+        panda.move_robot(postgrasp_transform[:3], postgrasp_transform[3:], 0)
+
+
+        
         rclpy.spin(panda)
     except KeyboardInterrupt:
         panda.get_logger().info("Shutting down.")
