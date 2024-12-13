@@ -11,6 +11,9 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, Twist, PoseStamped, TwistStamped, TransformStamped
 from message_filters import Subscriber, ApproximateTimeSynchronizer
+from franka_msgs.action import Grasp, Homing, Move
+from franka_msgs.msg import GraspEpsilon
+from rclpy.action import ActionClient
 
 import copy
 import cv2
@@ -19,7 +22,7 @@ import open3d
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from configs.gem_camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_INDEX_MAP, TOPICS_DEPTH, TOPICS_RGB,
+from gem_camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_INDEX_MAP, TOPICS_DEPTH, TOPICS_RGB,
                                     RGB_FRAMES, TOPICS_CAM_INFO, BASE_FRAME, INHAND_CAMERA_NAME)
 
 class CloudSynchronizer(Node):
@@ -77,6 +80,18 @@ class CloudSynchronizer(Node):
         self.camera_extrinsics: dict = self.get_all_camera_extrinsics()
         self.get_logger().info("Initializing camera intrinsics.")
         self.camera_intrinsics: dict = self.get_all_camera_intrinsics()
+
+
+        self.grasp_client = ActionClient(self, Grasp, '/fr3_gripper/grasp')
+        self.grasp_client.wait_for_server()
+        self.get_logger().info(f'grasp agent ready!')
+
+        self.homing_client = ActionClient(self, Move, '/fr3_gripper/move')
+        self.homing_client.wait_for_server()
+        self.get_logger().info(f'homing agent ready!')
+
+        self.speed = 0.2
+        self.grasping = False
 
     def sync_callback(self, *args):
         num_cameras = len(self.camera_names)
@@ -204,6 +219,45 @@ class CloudSynchronizer(Node):
             self.rgb_dict[camera_name] = None
             self.depth_dict[camera_name] = None
     
+    # ----------------------Grasp functions---------------------------
+    def send_grasp_goal(self, width=0.00, force=50.0):
+        epsilon = GraspEpsilon()
+        epsilon.inner = 0.05
+        epsilon.outer = 0.05
+        goal_msg = Grasp.Goal(width=width, speed=self.speed, force=force, epsilon=epsilon)
+        future = self.grasp_client.send_goal_async(goal_msg)
+        future.add_done_callback(self.grasp_response_callback)
+
+    def grasp_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            # self.get_logger().info('Grasp goal rejected.')
+            return
+        # self.get_logger().info('Grasp goal accepted.')
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.grasp_result_callback)
+
+    def grasp_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f'Grasp result: {result}')
+
+    def send_homing_goal(self):
+        goal_msg = Move.Goal(width=0.1, speed=self.speed)
+        future = self.homing_client.send_goal_async(goal_msg)
+        future.add_done_callback(self.homing_response_callback)
+
+    def homing_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            # self.get_logger().info('Homing goal rejected.')
+            return
+        # self.get_logger().info('Homing goal accepted.')
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.homing_result_callback)
+
+    def homing_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f'Homing result: {result}')
 
 def main():
     rclpy.init()

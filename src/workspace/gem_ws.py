@@ -2,7 +2,7 @@ import numpy as np
 import rospy
 
 from legacy.cloud_proxy_ros1 import CloudProxy
-from panda import PandaArmControl
+from src.legacy.panda import PandaArmControl
 
 class GEMWS:
     def __init__(self):

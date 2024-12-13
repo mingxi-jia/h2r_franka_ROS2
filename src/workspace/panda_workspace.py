@@ -29,7 +29,7 @@ from lepp.clip_dino_seg import clip_dino_seg
 from lepp.clip_preprocess import CLIP_processor
 from f3rm_robot.load import load_nerfstudio_outputs
 from legacy.cloud_proxy_ros1 import CloudProxy
-from panda import PandaArmControl
+from src.legacy.panda import PandaArmControl
 
 KEVIN_WS_BOUNDS = [86, 472, 318, 602] # [top, bottom, left, right]
 KEVIN_HEIGHT_OFFSET = -1.05271 # plusing offset always means realworld to object space

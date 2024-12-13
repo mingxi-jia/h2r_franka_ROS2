@@ -38,6 +38,7 @@ def generate_launch_description():
                     'color_height': img_height,
                     'color_fps': hz,
                     'camera_name': 'dave',
+                    # 'pointcloud.enable': True
                 }]
             )
         ]),

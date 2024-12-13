@@ -5,9 +5,8 @@ from PIL import Image
 import numpy as np
 import torch
 
-from src.skills.base_agent import base_agent
 
-class GEM(base_agent):
+class GEM():
     def __init__(self, device='cpu'):
         super().__init__(device)
         pass
