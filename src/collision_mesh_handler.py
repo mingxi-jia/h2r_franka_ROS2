@@ -10,17 +10,16 @@ from moveit_msgs.msg import (
 )
 
 from rclpy.node import Node
+import rclpy
 
 
 def CollisionMeshHandler(Node):
 
     def __init__(
         self,
-        joint_names: List[str],
-        base_link_name: str,
-        end_effector_name: str,
-        group_name
+        base_link_name,
     ):
+        self.__base_link_name = base_link_name
         self.__collision_object_publisher = self.create_publisher(
             CollisionObject, "/collision_object", 10
         )
@@ -202,12 +201,26 @@ def CollisionMeshHandler(Node):
         ):
 
         self.add_collision_mesh(filepath, id, pose, position, quat_xyzw, frame_id, operation, scale, mesh)
-        self.attach_collision_object(id, link_name = 'fr3_link0')
+        self.attach_collision_object(id, link_name = 'fr3_hand_tcp')
         
 if __name__=="__main__":
     parent_mesh_file = 
     child_mesh_file = 
 
-    mesh_handler = CollisionMeshHandler()
+    mesh_handler = CollisionMeshHandler('fr3_link0')
     try: 
-        mesh_handler.add_mesh(parent_mesh_file)
+        mesh_handler.add_collision_mesh(parent_mesh_file,
+                              'parent',
+                              position = [0,0,0],
+                              quat_xyzw = [0,0,0,1])
+        mesh_handler.add_attached_collision_mesh(child_mesh_file,
+                              'child',
+                              position = [0,0,0],
+                              quat_xyzw = [0,0,0,1])
+     except KeyboardInterrupt:
+        pass
+    finally:
+        # this is needed because of ROS2 mechanism.
+        # without destroy_node(), it somehow wont work if you restart the program
+        mesh_handler.destroy_node()
+        rclpy.shutdown()
