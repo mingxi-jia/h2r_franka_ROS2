@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation
 from rclpy.node import Node
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped
-
+import copy
 
 class PosePublisher(Node):
     def __init__(self):
@@ -70,17 +70,21 @@ if __name__ == "__main__":
     panda = Executor('mel')
     marker_publisher = PosePublisher()
     try:
-        grasp_mat = np.array([[-0.01545242, -0.9881252,   0.15287187,  0.6008789 ],
-                        [ 0.13703788, -0.1535403,  -0.97859389, -0.03792574],
-                        [ 0.99044527,  0.00582759,  0.13778315,  0.07050603],
-                        [ 0.,          0.,          0.,          1.        ]])
+        grasp_mat = np.array([[-0.14387667, -0.94549284, -0.2921349,  0.61160968],
+                             [-0.16334109,  0.31384691, -0.93531802, -0.13871732],
+                             [ 0.97602213, -0.08685281, -0.19959308,  0.0693942 ],
+                             [ 0.,          0.,          0. ,         1.        ]])
 
 
-        pregrasp_mat = translateFrameNegativeZ(grasp_pose, .15)
+        
 
         # To adapt the grasps for this specific type of gripper
         fixed_grasp_transform  = Rotation.from_euler( 'yxz', [np.pi/2, np.pi/2, 0])
         grasp_rot = Rotation.from_matrix(np.matmul(fixed_grasp_transform.as_matrix(), grasp_mat[:3, :3],))
+        grasp_mat[:3, :3] = grasp_rot.as_matrix()
+        grasp_mat = translateFrameNegativeZ(grasp_mat, .05)
+        pregrasp_mat = translateFrameNegativeZ(grasp_mat, .15)
+
         grasp_transform = np.concatenate([grasp_mat[:3, 3:].T[0], grasp_rot.as_quat()]) 
         pregrasp_transform = np.concatenate([pregrasp_mat[:3, 3:].T[0], grasp_rot.as_quat()]) 
         postgrasp_transform = np.concatenate([grasp_mat[:3, 3:].T[0], grasp_rot.as_quat()])
@@ -89,15 +93,20 @@ if __name__ == "__main__":
         marker_publisher.publish_grasp_pose(pregrasp_transform)
         input("Check the pregrasp - press enter to execute on the real robot")
         panda.move_robot(pregrasp_transform[:3], pregrasp_transform[3:], 1)
+        for i in range(10):
+            rclpy.spin_once()
 
         marker_publisher.publish_grasp_pose(grasp_transform)
         input("Check the grasp - press enter to execute on the real robot")
 
-        panda.move_robot(grasp_transform[:3], grasp_transform[3:], 0)
-        
-        input("Going to postgrasp for segmentation- press enter to execute on the real robot")
-        panda.move_robot(postgrasp_transform[:3], postgrasp_transform[3:], 0)
+        future = panda.move_robot(grasp_transform[:3], grasp_transform[3:], 0)
+        for i in range(10):
+            rclpy.spin_once()
 
+
+        # input("Going to postgrasp for segmentation- press enter to execute on the real robot")
+        # panda.move_robot(postgrasp_transform[:3], postgrasp_transform[3:], 0)
+        # rclpy.spin_once(panda)
 
         
         rclpy.spin(panda)

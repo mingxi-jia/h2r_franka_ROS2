@@ -17,7 +17,8 @@ import numpy as np
 import time
 import threading
 from pynput import keyboard
-from config.configs import EE_HOME, JOINT_HOME
+#from config.configs import EE_HOME, JOINT_HOME
+
 
 # ros2 topic pub /my_pose geometry_msgs/msg/PoseStamped "header:
 #   stamp:
@@ -83,10 +84,10 @@ class Executor(Node):
         while self.current_joint_state is None:
             self.get_logger().warn("Waiting for current_joint_state...")
             time.sleep(0.1)
-            rclpy.spin_once(self, timeout_sec=1.0)
+            rclpy.spin_once(self, timeout_sec=3.0)
         # initialize gripper state because the init open width is always different, causing problems for motion planning
         gripper_init_state = self.current_joint_state.position[-1]
-        JOINT_HOME['fr3_finger_joint1'] = JOINT_HOME['fr3_finger_joint2'] = gripper_init_state
+        #JOINT_HOME['fr3_finger_joint1'] = JOINT_HOME['fr3_finger_joint2'] = gripper_init_state
 
         # moveit utils
         self.ik_client = self.create_client(GetPositionIK, '/compute_ik')
@@ -215,10 +216,9 @@ class Executor(Node):
         pose_msg.pose.orientation.y = goal_pose_quat[1]
         pose_msg.pose.orientation.z = goal_pose_quat[2]
         pose_msg.pose.orientation.w = goal_pose_quat[3]
-        
 
         # Here we would publish to a relevant topic to move the robot
-        self.ik_request(pose_msg)
+        future = self.ik_request(pose_msg)
         # self.get_logger().info(f"Movement command sent: {twist}")
         if round(gripper_bool) == 0:
             self.homing_action_triggered = False
@@ -230,6 +230,7 @@ class Executor(Node):
             if not self.homing_action_triggered:
                 self.homing_action_triggered = True
                 self.open_gripper()
+        return future
 
     
     def get_action_sequence(self):
@@ -360,6 +361,7 @@ class Executor(Node):
             future.add_done_callback(self.ik_response_callback)
         else:
             self.get_logger().error('IK service not available.')
+        return future
 
     def ik_response_callback(self, future):
         try:
@@ -418,7 +420,9 @@ class Executor(Node):
         # print(goal_msg)
 
         self.get_logger().info('Sending motion plan goal.')
-        self.move_group_client.send_goal_async(goal_msg).add_done_callback(self.goal_response_callback)
+        future = self.move_group_client.send_goal_async(goal_msg)
+        future.add_done_callback(self.goal_response_callback)
+        return future
         
 
     def goal_response_callback(self, future):

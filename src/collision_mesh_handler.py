@@ -3,6 +3,8 @@ from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
+from std_msgs.msg import Header
+from shape_msgs.msg import Mesh, MeshTriangle
 
 from moveit_msgs.msg import (
     AttachedCollisionObject,
@@ -13,12 +15,12 @@ from rclpy.node import Node
 import rclpy
 
 
-def CollisionMeshHandler(Node):
-
+class CollisionMeshHandler(Node):
     def __init__(
         self,
         base_link_name,
     ):
+        super().__init__('collision_mesh_handler')
         self.__base_link_name = base_link_name
         self.__collision_object_publisher = self.create_publisher(
             CollisionObject, "/collision_object", 10
@@ -26,7 +28,6 @@ def CollisionMeshHandler(Node):
         self.__attached_collision_object_publisher = self.create_publisher(
             AttachedCollisionObject, "/attached_collision_object", 10
         )
-        
 
     #adapted from pymoveit2
     def add_collision_mesh(
@@ -96,7 +97,7 @@ def CollisionMeshHandler(Node):
                 )
             pose_stamped = PoseStamped(
                 header=Header(
-                    stamp=self._node.get_clock().now().to_msg(),
+                    stamp=self.get_clock().now().to_msg(),
                     frame_id=(
                         frame_id if frame_id is not None else self.__base_link_name
                     ),
@@ -126,6 +127,7 @@ def CollisionMeshHandler(Node):
             transform = np.eye(4)
             np.fill_diagonal(transform, scale)
             mesh.apply_transform(transform)
+        mesh.show()
 
         msg.meshes.append(
             Mesh(
@@ -147,11 +149,10 @@ def CollisionMeshHandler(Node):
         msg = CollisionObject()
         msg.id = id
         msg.operation = CollisionObject.REMOVE
-        msg.header.stamp = self._node.get_clock().now().to_msg()
+        msg.header.stamp = self.get_clock().now().to_msg()
         self.__collision_object_publisher.publish(msg)
 
-
-    def attach_collision_object(
+    def attach_collision_mesh(
         self,
         id: str,
         link_name: Optional[str] = None,
@@ -201,14 +202,16 @@ def CollisionMeshHandler(Node):
         ):
 
         self.add_collision_mesh(filepath, id, pose, position, quat_xyzw, frame_id, operation, scale, mesh)
-        self.attach_collision_object(id, link_name = 'fr3_hand_tcp')
+        self.attach_collision_mesh(id, link_name = 'fr3_hand_tcp')
         
 if __name__=="__main__":
-    parent_mesh_file = 
-    child_mesh_file = 
+    parent_mesh_file = '/home/mingxi/code/h2r_franka_ROS2_skye/src/rack_parent.obj'
+    child_mesh_file = '/home/mingxi/code/h2r_franka_ROS2_skye/src/mug_child.obj'
+    rclpy.init()
 
     mesh_handler = CollisionMeshHandler('fr3_link0')
     try: 
+        print("collision mesh load")
         mesh_handler.add_collision_mesh(parent_mesh_file,
                               'parent',
                               position = [0,0,0],
@@ -217,7 +220,7 @@ if __name__=="__main__":
                               'child',
                               position = [0,0,0],
                               quat_xyzw = [0,0,0,1])
-     except KeyboardInterrupt:
+    except KeyboardInterrupt:
         pass
     finally:
         # this is needed because of ROS2 mechanism.
