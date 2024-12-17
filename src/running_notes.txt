@@ -6,3 +6,13 @@ to turn on the robot: ros2_launch franka_bringup franka.launch.py arm_id:= fr3 r
     to turn on cameras:  ros2 launch launch/launch_all_cameras.launch.py
     to close the gripper: ros2 action send_goal /fr3_gripper/grasp franka_msgs/action/Grasp "{width:0.0, speed: 0.3, force:75, epsilon: {inner: 0.02, outer: 0.02}}"
     to open the gripper: ros2 action send_goal /fr3_gripper/homing franka_msgs/action/Homing {}
+
+
+
+TODOs: 
+     - figure out how to get the moveit commands to run one at a time and not all at once
+     - add the "predict relpose" thing and the rest of demo processing
+     - add convex decomposition for motion planning in moveit
+     - think through the whole pipeline and making that easier 
+     - objective function debugging
+     - figure out what is up with the cosine similarity thing and test for segmentation
