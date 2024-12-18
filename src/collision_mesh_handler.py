@@ -216,10 +216,10 @@ if __name__=="__main__":
                               'parent',
                               position = [0,0,0],
                               quat_xyzw = [0,0,0,1])
-        mesh_handler.add_attached_collision_mesh(child_mesh_file,
-                              'child',
-                              position = [0,0,0],
-                              quat_xyzw = [0,0,0,1])
+        # mesh_handler.add_collision_mesh(child_mesh_file,
+        #                       'child',
+        #                       position = [0,0,0],
+        #                       quat_xyzw = [0,0,0,1])
     except KeyboardInterrupt:
         pass
     finally:

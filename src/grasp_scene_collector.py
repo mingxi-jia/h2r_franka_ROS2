@@ -14,7 +14,7 @@ def get_screenshot(cloud_proxy, fname, args=None,):
 
 if __name__ == "__main__":
     scene_type = 'mug_on_rack'
-    scene_name = 'red_mug_flared_rack'
+    scene_name = 'red_mug_thin_rack_test'
     scene_root_dir = '/home/mingxi/code/h2r_franka_ROS2_skye/grasp_data'
     scene_folder = os.path.join(scene_root_dir, scene_type, scene_name)
     os.makedirs(scene_folder, exist_ok=True)

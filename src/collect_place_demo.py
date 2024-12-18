@@ -30,7 +30,7 @@ class PoseListener(Node):
 if __name__ == "__main__":
 
     demo_type = 'mug_on_rack'
-    demo_name = 'crossword_mug_skinny_rack'
+    demo_name = 'blue_mug_thin_rack'
     demo_root_dir = '/home/mingxi/code/h2r_franka_ROS2_skye/demo_data'
     demo_folder = os.path.join(demo_root_dir, demo_type, demo_name)
     os.makedirs(demo_folder, exist_ok=True)

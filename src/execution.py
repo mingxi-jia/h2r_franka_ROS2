@@ -412,7 +412,7 @@ class Executor(Node):
 
         goal_msg.request.goal_constraints.append(constraints)
         goal_msg.request.num_planning_attempts = 10
-        goal_msg.request.allowed_planning_time = 0.1
+        goal_msg.request.allowed_planning_time = 1.0#0.1
         goal_msg.request.group_name = 'fr3_arm'
         goal_msg.request.pipeline_id = 'move_group'
         goal_msg.request.max_velocity_scaling_factor = 0.1
