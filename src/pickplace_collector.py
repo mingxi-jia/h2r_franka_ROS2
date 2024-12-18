@@ -184,6 +184,7 @@ class PickPlaceCollector():
 
     def shutdown(self):
         self.cloud_synchronizer.destroy_node()
+        self.cloud_thread.join()
 
 def main():
     rclpy.init()

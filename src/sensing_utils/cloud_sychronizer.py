@@ -19,6 +19,9 @@ import copy
 import cv2
 import time
 import open3d 
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -26,10 +29,10 @@ from gem_camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_IN
                                     RGB_FRAMES, TOPICS_CAM_INFO, BASE_FRAME, INHAND_CAMERA_NAME)
 
 class CloudSynchronizer(Node):
-    def __init__(self):
+    def __init__(self, enable_robot=True):
         super().__init__('cloud_synchronizer')
 
-        self.collect_freq = 1.
+        self.collect_freq = 1.5
         self.time_diff = 1. / self.collect_freq
 
         self.ee_pose = None
@@ -103,9 +106,11 @@ class CloudSynchronizer(Node):
         # Process camera data
         rgb_data, depth_data = dict(), dict()
         for i, camera_name in enumerate(self.camera_names):
-            rgb_data[camera_name] = np.array(rgb_images[i].data).reshape((rgb_images[i].height, rgb_images[i].width, -1))
-            depth_data[camera_name] = self.bridge.imgmsg_to_cv2(depth_images[i], "16UC1").astype(np.float32) / 1000
-
+            try:
+                rgb_data[camera_name] = np.array(rgb_images[i].data).reshape((rgb_images[i].height, rgb_images[i].width, -1))
+                depth_data[camera_name] = self.bridge.imgmsg_to_cv2(depth_images[i], "16UC1").astype(np.float32) / 1000
+            except Exception as e:
+                self.get_logger().warn(f"Failed to process data for camera {camera_name}: {str(e)}")
 
         self.rgb_dict = rgb_data
         self.depth_dict = depth_data
@@ -131,9 +136,11 @@ class CloudSynchronizer(Node):
         while keep_trying:
             try:
                 transformMsg = self.tf_buffer.lookup_transform(toFrame, fromFrame, lookupTime, Duration(seconds=1))
+                # transformMsg = self.tf_buffer.lookup_transform_async(toFrame, fromFrame, lookupTime, Duration(seconds=1))
+
                 keep_trying = False
             except:
-                rclpy.spin_once(self, timeout_sec=1)
+                rclpy.spin_once(self, timeout_sec=1.)
                 
         translation = transformMsg.transform.translation
         pos = [translation.x, translation.y, translation.z]
