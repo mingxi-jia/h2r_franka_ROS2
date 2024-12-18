@@ -29,6 +29,9 @@ def generate_launch_description():
                     'rgb_camera.white_balance':3071.0,
                     'rgb_camera.exposure':300,
                     'align_depth.enable': True,
+                    'motion_module.global_time_enabled': True,
+                    'depth_module.global_time_enabled': True,
+                    'rgb_camera.global_time_enabled': True,
                     'depth_width': img_width,
                     'depth_height': img_height,
                     'depth_fps': fps,
@@ -108,7 +111,8 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='kevin_link_broadcaster',
-            arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
+            # arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
+            arguments=['0.649525', '-0.025157', '0.998795', '0.515498', '0.481149', '-0.498148', '0.504586', 'fr3_link0', 'kevin_link']
         ),
         
         Node(
