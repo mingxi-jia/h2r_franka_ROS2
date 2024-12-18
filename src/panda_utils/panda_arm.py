@@ -169,7 +169,9 @@ class ArmControl(Node):
         time.sleep(0.1)
         self.get_logger().info('Waiting for resetting.')
 
-    def robot_reset_by_JOINT(self):
+    def robot_reset_by_JOINT(self, joint_home: dict=None):
+        if joint_home is None:
+            joint_home = JOINT_HOME
         
         while self.current_joint_state is None:
             self.get_logger().warn("Waiting for current_joint_state...")
@@ -193,7 +195,7 @@ class ArmControl(Node):
 
         # Set goal constraints using the IK solution
         constraints = Constraints()
-        for joint, position in JOINT_HOME.items():
+        for joint, position in joint_home.items():
             joint_constraint = JointConstraint()
             joint_constraint.joint_name = joint
             joint_constraint.position = position
@@ -338,8 +340,10 @@ class ArmControl(Node):
 
         time.sleep(estimated_time)
 
-    def reset(self):
-        self.robot_reset_by_JOINT()
+    def reset(self, HOME_JOINT_DICT: dict=None):
+        if HOME_JOINT_DICT is None:
+            HOME_JOINT_DICT = JOINT_HOME
+        self.robot_reset_by_JOINT(HOME_JOINT_DICT)
 
     def pick(self, x, y, r, z=None):
         print(f"picking at x:{x}, y:{y}, r{r/np.pi*180} degree")

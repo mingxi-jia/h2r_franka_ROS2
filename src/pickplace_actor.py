@@ -15,6 +15,7 @@ from pynput.keyboard import Key
 
 from sensing_utils.cloud_sychronizer import CloudSynchronizer
 from panda_utils.panda_arm import ArmControl, DummyRobot
+from panda_utils.configs import PICKPLACE_JOINT_HOME
 
 # from agents.gem import GEM
 from LEPP.test import GEMAgent
@@ -79,7 +80,7 @@ class PickPlaceActor():
         Main loop to manage the pick place process.
         """
         while True:
-            self.robot.reset()
+            self.robot.reset(PICKPLACE_JOINT_HOME)
             pick_obj = input("Type in pick object:")
             place_obj = input("Type in place object:")
             instruction = {'instruction': f'pick {pick_obj} and place into {place_obj}', 'pick_obj': pick_obj, 'place_obj': place_obj}
