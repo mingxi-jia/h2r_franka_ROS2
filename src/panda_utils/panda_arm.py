@@ -15,15 +15,24 @@ from franka_msgs.msg import GraspEpsilon
 
 import numpy as np
 import time
+import copy
 import threading
 from pynput import keyboard
 from scipy.spatial.transform import Rotation as R
 
 from panda_utils.configs import EE_HOME, JOINT_HOME
 
+def calculate_waypoints(current_xyz, goal_xyz, num_waypoints):
+    current_xyz, goal_xyz = np.asarray(current_xyz), np.asarray(goal_xyz)
+    intermediate_distance = (goal_xyz - current_xyz) / (num_waypoints + 1)
+
+    waypoints = []
+    for i in range(num_waypoints + 1):
+        waypoints.append(current_xyz + intermediate_distance * (i + 1))
+    return waypoints
 
 class ArmControl(Node):
-    def __init__(self):
+    def __init__(self, joint_home:dict=None):
         super().__init__('goal_pose_subscriber')
         self.base_link = "base"
         self.ee_link = "fr3_hand_tcp"
@@ -33,11 +42,12 @@ class ArmControl(Node):
         self.current_joint_state = None
         self.ik_solution = None
         self.current_ee_pose = None
+        self.joint_home = joint_home if joint_home is not None else JOINT_HOME
 
         # Create 
         self.joint_state_subscription = self.create_subscription(
             JointState,
-            '/joint_states',
+            '/franka/joint_states',
             self.joint_state_callback,
             20
         )
@@ -46,8 +56,8 @@ class ArmControl(Node):
             time.sleep(0.1)
             rclpy.spin_once(self, timeout_sec=1.0)
         # initialize gripper state because the init open width is always different, causing problems for motion planning
-        gripper_init_state = self.current_joint_state.position[-1]
-        JOINT_HOME['fr3_finger_joint1'] = JOINT_HOME['fr3_finger_joint2'] = gripper_init_state
+        # gripper_init_state = self.current_joint_state.position[-1]
+        # self.joint_home['fr3_finger_joint1'] = self.joint_home['fr3_finger_joint2'] = gripper_init_state
 
         self.ee_pose_subscription = self.create_subscription(PoseStamped, '/franka_robot_state_broadcaster/current_pose', self.ee_pose_callback, 50)
 
@@ -83,12 +93,14 @@ class ArmControl(Node):
         # self.get_logger().info(f'Updated current joint state: {msg.name}')
     
     def close_gripper(self, width=0.00, force=50.0):
+        # self.joint_home['fr3_finger_joint1'] = self.joint_home['fr3_finger_joint2'] = 0.
         epsilon = GraspEpsilon()
         epsilon.inner = 0.05
         epsilon.outer = 0.05
         goal_msg = Grasp.Goal(width=width, speed=self.gripper_speed, force=force, epsilon=epsilon)
         future = self.grasp_client.send_goal_async(goal_msg)
         future.add_done_callback(self.grasp_response_callback)
+        time.sleep(2.0)
     
     def grasp_response_callback(self, future):
         goal_handle = future.result()
@@ -109,9 +121,11 @@ class ArmControl(Node):
         future.add_done_callback(self.homing_response_callback)
     
     def open_gripper(self):
+        # self.joint_home['fr3_finger_joint1'] = self.joint_home['fr3_finger_joint2'] = self.current_joint_state.position[-1]
         goal_msg = Move.Goal(width=0.1, speed=self.gripper_speed)
         future = self.homing_client.send_goal_async(goal_msg)
         future.add_done_callback(self.homing_response_callback)
+        time.sleep(2.0)
     
     def homing_response_callback(self, future):
         goal_handle = future.result()
@@ -169,9 +183,7 @@ class ArmControl(Node):
         time.sleep(0.1)
         self.get_logger().info('Waiting for resetting.')
 
-    def robot_reset_by_JOINT(self, joint_home: dict=None):
-        if joint_home is None:
-            joint_home = JOINT_HOME
+    def robot_reset_by_JOINT(self):
         
         while self.current_joint_state is None:
             self.get_logger().warn("Waiting for current_joint_state...")
@@ -195,7 +207,7 @@ class ArmControl(Node):
 
         # Set goal constraints using the IK solution
         constraints = Constraints()
-        for joint, position in joint_home.items():
+        for joint, position in self.joint_home.items():
             joint_constraint = JointConstraint()
             joint_constraint.joint_name = joint
             joint_constraint.position = position
@@ -249,17 +261,22 @@ class ArmControl(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                self.ik_solution = dict(zip(
-                    response.solution.joint_state.name,
-                    response.solution.joint_state.position
+                joint_names = response.solution.joint_state.name[:7] # abondon gripper states
+                joint_positions = response.solution.joint_state.position[:7]
+                ik_solution = dict(zip(
+                    joint_names,
+                    joint_positions
                 ))
+                self.ik_solution = ik_solution
                 # self.get_logger().info(f'IK solution found: {self.ik_solution}')
                 self.send_motion_plan()
             else:
                 self.get_logger().error('Failed to find IK solution.')
+                self.ik_solution = None
         except Exception as e:
             self.get_logger().error(f'IK service call failed: {e}')
-        
+            self.ik_solution = None
+
     def send_motion_plan(self):
         if not self.ik_solution:
             self.get_logger().error('No IK solution available for motion planning.')
@@ -281,6 +298,8 @@ class ArmControl(Node):
         goal_msg.request.start_state = start_state
         goal_msg.request.start_state.is_diff = False
 
+        # self.ik_solution['fr3_finger_join1'] = self.ik_solution['fr3_finger_join1'] = self.current_joint_state.position[-1]
+
         # Set goal constraints using the IK solution
         constraints = Constraints()
         for joint, position in self.ik_solution.items():
@@ -297,8 +316,8 @@ class ArmControl(Node):
         goal_msg.request.allowed_planning_time = 0.1
         goal_msg.request.group_name = 'fr3_arm'
         goal_msg.request.pipeline_id = 'move_group'
-        goal_msg.request.max_velocity_scaling_factor = 0.1
-        goal_msg.request.max_acceleration_scaling_factor = 0.1
+        goal_msg.request.max_velocity_scaling_factor = 0.3
+        goal_msg.request.max_acceleration_scaling_factor = 0.3
         # print(goal_msg)
 
         self.get_logger().info('Sending motion plan goal.')
@@ -318,14 +337,31 @@ class ArmControl(Node):
         self.get_logger().info(f'Motion plan result: {result.error_code}')
 
     #----------------------------high-level apis------------------------------
-    def goto(self, x, y, z, quaternion_xyzw):
-        while self.current_joint_state is None and self.current_ee_pose is None:
+    def joint_is_reach(self, ik_solution: dict):
+        if ik_solution is None:
+            return False
+        
+        while self.current_joint_state is None:
             time.sleep(0.1)
             rclpy.spin_once(self, timeout_sec=0.1)
+
+        for joint, position in ik_solution.items():
+            index = self.current_joint_state.name.index(joint)
+            if abs(self.current_joint_state.position[index]-position) >= 0.02:
+                return False
+        return True
+
+    def wait_for_motion(self, x, y, z):
         manhattan_dist = np.array([x, y, z]) - self.current_ee_pose
         arm_speed = 0.08
         estimated_time = np.abs(manhattan_dist).sum() / arm_speed
         self.get_logger().info(f"EST: {estimated_time}")
+
+    def goto(self, x, y, z, quaternion_xyzw):
+        self.current_ee_pose = None
+        while self.current_joint_state is None or self.current_ee_pose is None:
+            time.sleep(0.1)
+            rclpy.spin_once(self, timeout_sec=0.1)
 
         goto_msg = PoseStamped()
         goto_msg.pose.position.x = x
@@ -338,12 +374,43 @@ class ArmControl(Node):
         self.ik_request(goto_msg)
         self.get_logger().info('Waiting for getting to the goal.')
 
-        time.sleep(estimated_time)
+        while not self.joint_is_reach(self.ik_solution):
+            time.sleep(0.3)
+            rclpy.spin_once(self, timeout_sec=0.1)
 
-    def reset(self, HOME_JOINT_DICT: dict=None):
-        if HOME_JOINT_DICT is None:
-            HOME_JOINT_DICT = JOINT_HOME
-        self.robot_reset_by_JOINT(HOME_JOINT_DICT)
+        self.get_logger().info('Goal reached.')
+        self.ik_solution = None
+
+    def waypoints_goto(self, x, y, z, quaternion_xyzw):
+        self.current_ee_pose = None
+        while self.current_joint_state is None or self.current_ee_pose is None:
+            time.sleep(0.1)
+            rclpy.spin_once(self, timeout_sec=0.1)
+        current_ee_pose = copy.copy(self.current_ee_pose)
+        waypoints: list[np.array] = calculate_waypoints(current_xyz=current_ee_pose, goal_xyz=[x, y, z], num_waypoints=1)
+
+        for wp in waypoints:
+            x, y, z = wp
+            goto_msg = PoseStamped()
+            goto_msg.pose.position.x = x
+            goto_msg.pose.position.y = y
+            goto_msg.pose.position.z = z
+            goto_msg.pose.orientation.x = quaternion_xyzw[0]
+            goto_msg.pose.orientation.y = quaternion_xyzw[1]
+            goto_msg.pose.orientation.z = quaternion_xyzw[2]
+            goto_msg.pose.orientation.w = quaternion_xyzw[3]
+            self.ik_request(goto_msg)
+            self.get_logger().info('Waiting for getting to the goal.')
+
+            while not self.joint_is_reach(self.ik_solution):
+                time.sleep(0.2)
+                rclpy.spin_once(self, timeout_sec=0.1)
+
+            self.get_logger().info('Goal reached.')
+            self.ik_solution = None
+
+    def reset(self):
+        self.robot_reset_by_JOINT()
 
     def pick(self, x, y, r, z=None):
         print(f"picking at x:{x}, y:{y}, r{r/np.pi*180} degree")
@@ -351,9 +418,8 @@ class ArmControl(Node):
             z = self.z_min
         quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
         self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
-        self.goto(x, y, self.z_min, quaternion_xyzw)
+        self.waypoints_goto(x, y, self.z_min, quaternion_xyzw)
         self.close_gripper()
-        time.sleep(3.0)
         self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
 
 
@@ -362,10 +428,10 @@ class ArmControl(Node):
         if z == None:
             z = self.z_min
         quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
+        place_z_offset = 0.05
         self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
-        self.goto(x, y, self.z_min, quaternion_xyzw)
+        self.waypoints_goto(x, y, self.z_min + place_z_offset, quaternion_xyzw)
         self.open_gripper()
-        time.sleep(3.0)
         self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
 
 class DummyRobot():

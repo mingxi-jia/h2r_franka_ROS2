@@ -4,9 +4,7 @@ JOINT_HOME = {'fr3_joint1': 0.11042000780357285,
               'fr3_joint4': -2.604455976986584, 
               'fr3_joint5': -0.05058759862777148, 
               'fr3_joint6': 2.2555149959059415, 
-              'fr3_joint7': 0.8085673491291019, 
-              'fr3_finger_joint1': 0.039472561329603195, 
-              'fr3_finger_joint2': 0.039472561329603195}
+              'fr3_joint7': 0.8085673491291019, }
 
 # EE_HOME aligns with JOINT_HOME
 EE_HOME = {'x': 0.40796923347729147,
@@ -24,9 +22,7 @@ PICKPLACE_JOINT_HOME = {'fr3_joint1': -0.41351440870053163,
                         'fr3_joint4': -2.7200379751045296, 
                         'fr3_joint5': -0.48011624235091194, 
                         'fr3_joint6': 2.003805837575158, 
-                        'fr3_joint7': 0.17205472437546995, 
-                        'fr3_finger_joint1': 0.039472561329603195, 
-                        'fr3_finger_joint2': 0.039472561329603195}
+                        'fr3_joint7': 0.17205472437546995, }
 
 # EE_HOME aligns with JOINT_HOME
 PICKPLACE_EE_HOME = {'x': 0.17872774979667,

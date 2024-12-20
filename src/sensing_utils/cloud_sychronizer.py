@@ -25,14 +25,48 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from gem_camera_configs import (IMAGE_HEIGHT, IMAGE_WIDTH, CAM_INDEX_MAP, CAM_INDEX_MAP, TOPICS_DEPTH, TOPICS_RGB,
-                                    RGB_FRAMES, TOPICS_CAM_INFO, BASE_FRAME, INHAND_CAMERA_NAME)
+from gem_camera_configs import TOPICS_DEPTH, TOPICS_RGB, TOPICS_CAM_INFO, RGB_FRAMES, BASE_FRAME, INHAND_CAMERA_NAME
+from closeloop_camera_configs import TOPICS_DEPTH as CLOSE_TOPICS_DEPTH, TOPICS_RGB as CLOSE_TOPICS_RGB, \
+    TOPICS_CAM_INFO as CLOSE_TOPICS_CAM_INFO, RGB_FRAMES as CLOSE_RGB_FRAMES, BASE_FRAME as CLOSE_BASE_FRAME
+
+CONFIG_MAP = {
+            'gem': {
+                'TOPICS_DEPTH': TOPICS_DEPTH,
+                'TOPICS_RGB': TOPICS_RGB,
+                'TOPICS_CAM_INFO': TOPICS_CAM_INFO,
+                'RGB_FRAMES': RGB_FRAMES,
+                'BASE_FRAME': BASE_FRAME,
+                'collect_freq': 1.5
+            },
+            'closeloop': {
+                'TOPICS_DEPTH': CLOSE_TOPICS_DEPTH,
+                'TOPICS_RGB': CLOSE_TOPICS_RGB,
+                'TOPICS_CAM_INFO': CLOSE_TOPICS_CAM_INFO,
+                'RGB_FRAMES': CLOSE_RGB_FRAMES,
+                'BASE_FRAME': CLOSE_BASE_FRAME,
+                'collect_freq': 5
+            }
+        }
 
 class CloudSynchronizer(Node):
-    def __init__(self, enable_robot=True):
+    def __init__(self, configuration='gem'):
         super().__init__('cloud_synchronizer')
 
-        self.collect_freq = 1.5
+        # cofigure 
+        if configuration in CONFIG_MAP.keys():
+            config = CONFIG_MAP[configuration]
+        else:
+            NotImplementedError
+        
+        self.TOPICS_DEPTH = config['TOPICS_DEPTH']
+        self.TOPICS_RGB = config['TOPICS_RGB']
+        self.TOPICS_CAM_INFO = config['TOPICS_CAM_INFO']
+        self.RGB_FRAMES = config['RGB_FRAMES']
+        self.BASE_FRAME = config['BASE_FRAME']
+        self.INHAND_CAMERA_NAME = INHAND_CAMERA_NAME
+        self.collect_freq = config['collect_freq']
+
+        # setup cloud
         self.time_diff = 1. / self.collect_freq
 
         self.ee_pose = None
@@ -42,19 +76,19 @@ class CloudSynchronizer(Node):
         self.depth_dict = dict()
 
         # Define camera names
-        self.camera_names = list(TOPICS_CAM_INFO.keys())  # Add all camera names here
+        self.camera_names = list(self.TOPICS_CAM_INFO.keys())  # Add all camera names here
         self.camera_names.sort()
 
         # Synchronizer
         self.rgb_subs = []
         self.depth_subs = []
         for camera_name in self.camera_names:
-            rgb_sub = Subscriber(self, Image, TOPICS_RGB[camera_name])
-            depth_sub = Subscriber(self, Image, TOPICS_DEPTH[camera_name])
+            rgb_sub = Subscriber(self, Image, self.TOPICS_RGB[camera_name])
+            depth_sub = Subscriber(self, Image, self.TOPICS_DEPTH[camera_name])
             self.rgb_subs.append(rgb_sub)
             self.depth_subs.append(depth_sub)
 
-            info_topic = TOPICS_CAM_INFO[camera_name]
+            info_topic = self.TOPICS_CAM_INFO[camera_name]
             self.camera_intrinsics[camera_name] = None
             self.camera_extrinsics[camera_name] = None
             self.rgb_dict[camera_name] = None
@@ -153,8 +187,8 @@ class CloudSynchronizer(Node):
         return transform
     
     def get_camera_extrinsics(self, camera_name):
-        extrinsic = self.lookup_transform(RGB_FRAMES[camera_name], 
-                                          BASE_FRAME
+        extrinsic = self.lookup_transform(self.RGB_FRAMES[camera_name], 
+                                          self.BASE_FRAME
                                           )
         return extrinsic
 
@@ -165,8 +199,8 @@ class CloudSynchronizer(Node):
         return self.camera_intrinsics
     
     def update_inhand_extrinsic(self):
-        cam = INHAND_CAMERA_NAME
-        extrinsic = self.get_camera_extrinsics(INHAND_CAMERA_NAME, BASE_FRAME)
+        cam = self.INHAND_CAMERA_NAME
+        extrinsic = self.get_camera_extrinsics(self.INHAND_CAMERA_NAME, self.BASE_FRAME)
         self.camera_extrinsics[cam] = extrinsic
     
     # ----------------------------Intrinsics
@@ -268,7 +302,7 @@ class CloudSynchronizer(Node):
 
 def main():
     rclpy.init()
-    collector = CloudSynchronizer()
+    collector = CloudSynchronizer('closeloop')
     try:
         rclpy.spin(collector)
     except (KeyboardInterrupt):

@@ -18,7 +18,7 @@ from panda_utils.panda_arm import ArmControl, DummyRobot
 from panda_utils.configs import PICKPLACE_JOINT_HOME
 
 # from agents.gem import GEM
-from LEPP.test import GEMAgent
+from LEPP.agent import GEMAgent
 
 def is_none_in_dict(data_dict: dict):
     if data_dict is None:
@@ -39,7 +39,7 @@ class PickPlaceActor():
 
         print("initializing robot")
         if enable_robot:
-            self.robot = ArmControl()
+            self.robot = ArmControl(joint_home=PICKPLACE_JOINT_HOME)
             self.executor.add_node(self.robot)
         else:
             self.robot = DummyRobot()
@@ -57,21 +57,23 @@ class PickPlaceActor():
         experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
         self.agent = GEMAgent(experiment_folder)
 
-        self.raw_multiview_rgbs = None
-        self.raw_multiview_depths = None
+        # self.raw_multiview_rgbs = None
+        # self.raw_multiview_depths = None
 
     def run_executor(self):
         self.executor.spin()
         
     def get_observation(self):
         self.cloud_synchronizer.clear_cache()
+        raw_multiview_rgbs, raw_multiview_depths = None, None
         time.sleep(1.0)
-        while is_none_in_dict(self.raw_multiview_rgbs) or is_none_in_dict(self.raw_multiview_depths):
-            self.raw_multiview_rgbs = self.cloud_synchronizer.get_raw_rgbs()
-            self.raw_multiview_depths = self.cloud_synchronizer.get_raw_depths()
+        while is_none_in_dict(raw_multiview_rgbs) or is_none_in_dict(raw_multiview_depths):
+            ee_pose = self.cloud_synchronizer.get_ee_pose()
+            raw_multiview_rgbs = self.cloud_synchronizer.get_raw_rgbs()
+            raw_multiview_depths = self.cloud_synchronizer.get_raw_depths()
             time.sleep(1.0)
             print("waiting for obs")
-        multiview_rgbs, multiview_depths = copy.copy(self.raw_multiview_rgbs), copy.copy(self.raw_multiview_depths)
+        multiview_rgbs, multiview_depths = copy.copy(raw_multiview_rgbs), copy.copy(raw_multiview_depths)
         return multiview_rgbs, multiview_depths
                     
  
@@ -80,13 +82,11 @@ class PickPlaceActor():
         Main loop to manage the pick place process.
         """
         while True:
-            self.robot.reset(PICKPLACE_JOINT_HOME)
+            self.robot.reset()
             pick_obj = input("Type in pick object:")
             place_obj = input("Type in place object:")
             instruction = {'instruction': f'pick {pick_obj} and place into {place_obj}', 'pick_obj': pick_obj, 'place_obj': place_obj}
-            # self.robot.pick(0.45, 0.2, np.pi/2)
-            # time.sleep(0.5)
-            # self.robot.place(0.45, -0.2, 0.)
+            
             rgbs, depths = self.get_observation()
             xyr_actions = self.agent.act(rgbs, depths, instruction)
             if xyr_actions is not None:
@@ -94,6 +94,9 @@ class PickPlaceActor():
                 self.robot.place(*xyr_actions['place'])
             else:
                 print("robot action is invalid")
+
+            # self.robot.pick(0.45, 0.2, np.pi/2)
+            # self.robot.place(0.45, -0.2, 0.)
             
     def print_dataset_info(self):
         pass
