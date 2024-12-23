@@ -46,8 +46,10 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='dave_link_broadcaster',
-            arguments=['1.27683', '-0.0480804', '0.583822', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
+            #arguments=['1.27683', '-0.0480804', '0.583822', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
+            arguments=[ '1.2568', '-0.0281', '0.5938', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
         ),
+        
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',

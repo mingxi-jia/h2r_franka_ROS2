@@ -12,10 +12,10 @@ def generate_launch_description():
             Node(
                 package='realsense2_camera',
                 executable='realsense2_camera_node',
-                name='stuart_camera',
-                namespace='stuart',
+                name='mel_camera',
+                namespace='mel',
                 parameters=[{
-                    'serial_no': '234222301686',
+                    'serial_no': '239222303414',
                     'depth_module.profile': f'{img_width}x{img_height}x{hz}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{hz}',
                     'enable_infra': False, 
@@ -26,9 +26,9 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3182.0,
-                    'depth_module.exposure':14725,
-                    'rgb_camera.exposure':120,
+                    'rgb_camera.white_balance':3330.0,
+                    'rgb_camera.exposure':100,
+                    'enable_infra': False, 
                     'align_depth.enable': True,
                     'depth_width': img_width,
                     'depth_height': img_height,
@@ -36,7 +36,7 @@ def generate_launch_description():
                     'color_width': img_width,
                     'color_height': img_height,
                     'color_fps': hz,
-                    'camera_name': 'stuart',
+                    'camera_name': 'mel',
                 }]
             ),
         ]),
@@ -44,9 +44,8 @@ def generate_launch_description():
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='stuart_link_broadcaster',
-            #arguments=['0.0197533', '0.370377', '0.613283', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
-            arguments=['0.0188', '0.3624', '0.6273', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
+            name='mel_link_broadcaster',
+            arguments=['0.5097', '-0.5114', '0.6884', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
         ),
 
         Node(

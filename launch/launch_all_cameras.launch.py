@@ -194,7 +194,8 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='stuart_link_broadcaster',
-            arguments=['0.0197533', '0.370377', '0.613283', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
+            #arguments=['0.0197533', '0.370377', '0.613283', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
+            arguments=['0.0188', '0.3624', '0.6273', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
         ),
         Node(
             package='tf2_ros',
@@ -212,20 +213,24 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='mel_link_broadcaster',
-            arguments=['0.509716', '-0.521368', '0.688352', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
+            #arguments=['0.509716', '-0.521368', '0.688352', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
+            arguments=['0.5097', '-0.5114', '0.6884', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
         ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='bob_link_broadcaster',
-            arguments=['0.55482', '0.493489', '0.638426', '0.321738', '0.30324', '-0.611973', '0.655759', 'fr3_link0', 'bob_link']
+            #arguments=['0.55482', '0.488489', '0.638426', '0.321738', '0.30324', '-0.611973', '0.655759', 'fr3_link0', 'bob_link']
+            arguments =[ '0.5618', '0.4885', '0.6324', '0.3121', '0.3116', '-0.6226', '0.6464', 'fr3_link0', 'bob_link']
         ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='dave_link_broadcaster',
-            arguments=['1.27683', '-0.0480804', '0.583822', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
+            #arguments=['1.27683', '-0.0480804', '0.583822', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
+            arguments=[ '1.2568', '-0.0281', '0.5938', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
         ),
+        
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',

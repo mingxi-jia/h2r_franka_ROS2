@@ -8,14 +8,13 @@ def generate_launch_description():
     hz = 30
     return LaunchDescription([
         # Camera nodes
-        GroupAction([
-            Node(
+        GroupAction([Node(
                 package='realsense2_camera',
                 executable='realsense2_camera_node',
-                name='stuart_camera',
-                namespace='stuart',
+                name='kevin_camera',
+                namespace='kevin',
                 parameters=[{
-                    'serial_no': '234222301686',
+                    'serial_no': 'f1420123',
                     'depth_module.profile': f'{img_width}x{img_height}x{hz}',
                     'rgb_camera.profile': f'{img_width}x{img_height}x{hz}',
                     'enable_infra': False, 
@@ -26,9 +25,8 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3182.0,
-                    'depth_module.exposure':14725,
-                    'rgb_camera.exposure':120,
+                    'rgb_camera.white_balance':3071.0,
+                    'rgb_camera.exposure':300,
                     'align_depth.enable': True,
                     'depth_width': img_width,
                     'depth_height': img_height,
@@ -36,7 +34,7 @@ def generate_launch_description():
                     'color_width': img_width,
                     'color_height': img_height,
                     'color_fps': hz,
-                    'camera_name': 'stuart',
+                    'camera_name': 'kevin',
                 }]
             ),
         ]),
@@ -44,9 +42,8 @@ def generate_launch_description():
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='stuart_link_broadcaster',
-            #arguments=['0.0197533', '0.370377', '0.613283', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
-            arguments=['0.0188', '0.3624', '0.6273', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
+            name='kevin_link_broadcaster',
+            arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
         ),
 
         Node(
