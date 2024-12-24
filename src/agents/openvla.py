@@ -15,6 +15,9 @@ import math
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
+from lepp.vision_utils import getTopDownProjectImg, get_crop, convert_robot_action_to_pixel_action, transform, convert_pixel_action_to_robot_action
+from lepp.real_dataset_processor import fuse_text_and_visual_maps, preprocess_obs, de_preprocess_action, load_yaml, fuse_text_and_visual_maps, preprocess_topdown_rgbd
+
 def zoom_in(rgb, percentage=0.6):
     height, width, channel = rgb.shape
     zoomed_height, zoomed_width = int(height*percentage), int(width*percentage)
@@ -27,7 +30,7 @@ def preprocess_rgb(rgb: np.array, is_test: bool):
     height, width, channel = rgb.shape
     rgb = rgb[:, width//2-height//2:width//2+height//2]
     # resize to 224x224 as used in openVLA
-    rgb = zoom_in(rgb)
+    # rgb = zoom_in(rgb)
     rgb = cv2.resize(rgb, (224, 224), 
                interpolation = cv2.INTER_LINEAR)
     if is_test:
@@ -72,6 +75,8 @@ def construct_delta_action_from_abs_poses(pose_t: np.array, pose_t_plus_1: np.ar
 
 class OpenVLAAgent:
     def __init__(self, experiment_folder, is_test=True) -> None:
+        print("AGENT: initializing OpenVLA agent")
+
         self.height, self.width, self.channel = 224, 224, 3
         # Register OpenVLA model to HF AutoClasses (not needed if you pushed model to HF Hub)
         AutoConfig.register("openvla", OpenVLAConfig)
@@ -107,6 +112,36 @@ class OpenVLAAgent:
         inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
         action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
         return action
+    
+    def pickplace(self, observation_dict: dict):
+        print("AGENT: openvla is processing.")
+
+        multiview_rgbs, instruction = observation_dict['rgbs'], observation_dict['instruction']
+
+        pick_instruction = f"pick {instruction['pick_obj']}"
+        place_instruction = f"place on {instruction['place_obj']}"
+
+        image = multiview_rgbs['kevin']
+        image, _ = preprocess_topdown_rgbd(image, np.zeros_like(image))
+        image = np.asarray(image, dtype=np.uint8)
+
+        prompt = f"In: What action should the robot take to {pick_instruction}?\nOut:"
+        inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
+        pick_action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
+        pick_xyr = np.array([pick_action[0]*224, pick_action[1]*224, pick_action[5]*np.pi*2])
+
+        prompt = f"In: What action should the robot take to {place_instruction}?\nOut:"
+        inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
+        place_action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
+        place_xyr = np.array([place_action[0]*224, place_action[1]*224, place_action[5]*np.pi*2])
+
+        p0_pixel_action, p1_pixel_action = de_preprocess_action(pick_xyr, place_xyr)
+
+        pick_robot_action = convert_pixel_action_to_robot_action(p0_pixel_action)
+        place_robot_action = convert_pixel_action_to_robot_action(p1_pixel_action)
+
+        return {'pick': pick_robot_action, 'place': place_robot_action}
+
 
 if __name__ == "__main__":
     experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug"

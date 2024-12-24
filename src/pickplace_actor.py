@@ -19,6 +19,8 @@ from panda_utils.configs import PICKPLACE_JOINT_HOME
 
 # from agents.gem import GEM
 from LEPP.agent import GEMAgent
+from agents.openvla import OpenVLAAgent
+            
 
 def is_none_in_dict(data_dict: dict):
     if data_dict is None:
@@ -30,11 +32,11 @@ def is_none_in_dict(data_dict: dict):
 
 
 class PickPlaceActor():
-    def __init__(self, enable_robot=True) -> None:
+    def __init__(self, experiment_folder, agent_type='gem', enable_robot=True) -> None:
         self.executor = MultiThreadedExecutor()
 
         print("initializing cloud proxy")
-        self.cloud_synchronizer = CloudSynchronizer()
+        self.cloud_synchronizer = CloudSynchronizer('gem')
         self.executor.add_node(self.cloud_synchronizer)
 
         print("initializing robot")
@@ -42,6 +44,7 @@ class PickPlaceActor():
             self.robot = ArmControl(joint_home=PICKPLACE_JOINT_HOME)
             self.executor.add_node(self.robot)
         else:
+            # for debugging
             self.robot = DummyRobot()
 
         self.executor_thread = threading.Thread(target=self.run_executor, daemon=True)
@@ -54,8 +57,10 @@ class PickPlaceActor():
         self.extrinsics = self.cloud_synchronizer.get_all_camera_extrinsics()
 
         # initialize agent
-        experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
-        self.agent = GEMAgent(experiment_folder)
+        if agent_type == 'gem':
+            self.agent = GEMAgent(experiment_folder)
+        elif agent_type == 'openvla':
+            self.agent = OpenVLAAgent(experiment_folder, is_test=True)
 
         # self.raw_multiview_rgbs = None
         # self.raw_multiview_depths = None
@@ -83,12 +88,14 @@ class PickPlaceActor():
         """
         while True:
             self.robot.reset()
+            sys.stdin.flush() # clean keyboard buffer
             pick_obj = input("Type in pick object:")
             place_obj = input("Type in place object:")
             instruction = {'instruction': f'pick {pick_obj} and place into {place_obj}', 'pick_obj': pick_obj, 'place_obj': place_obj}
             
             rgbs, depths = self.get_observation()
-            xyr_actions = self.agent.act(rgbs, depths, instruction)
+            observation_dict = {'rgbs': rgbs, "depths":depths, "instruction":instruction}
+            xyr_actions = self.agent.pickplace(observation_dict)
             if xyr_actions is not None:
                 self.robot.pick(*xyr_actions['pick'])
                 self.robot.place(*xyr_actions['place'])
@@ -108,7 +115,10 @@ class PickPlaceActor():
 
 def main():
     rclpy.init()
-    actor = PickPlaceActor(enable_robot=True)
+    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0"
+    agent_type = 'gem'
+    actor = PickPlaceActor(experiment_folder, agent_type)
     try:
         actor.start_acting_loop()
     except (KeyboardInterrupt, ExternalShutdownException):

@@ -95,11 +95,13 @@ class PickPlaceCollector():
                     
                     success = self.save_observation(raw_multiview_rgbs, raw_multiview_depths)
                     if success:
+                        sys.stdin.flush() # clean keyboard buffer
                         pick_obj = input("input pick object name:")
                         place_obj = input("input place object name:")
                         instructions = {'instruction': f"pick {pick_obj} and place on {place_obj}",
                                         'pick_obj': pick_obj,
                                         'place_obj': place_obj}
+                        print(f"Your instruction is save as {instructions}")
                         save_dict_data(self.episode_path, "instruction", instructions)
                         print("obs input saved.")
                     else:
