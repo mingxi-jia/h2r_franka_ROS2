@@ -313,7 +313,7 @@ class ArmControl(Node):
 
         goal_msg.request.goal_constraints.append(constraints)
         goal_msg.request.num_planning_attempts = 10
-        goal_msg.request.allowed_planning_time = 0.1
+        goal_msg.request.allowed_planning_time = 0.3
         goal_msg.request.group_name = 'fr3_arm'
         goal_msg.request.pipeline_id = 'move_group'
         goal_msg.request.max_velocity_scaling_factor = 0.3
@@ -374,9 +374,13 @@ class ArmControl(Node):
         self.ik_request(goto_msg)
         self.get_logger().info('Waiting for getting to the goal.')
 
+        starting_time = time.time()
         while not self.joint_is_reach(self.ik_solution):
-            time.sleep(0.3)
+            time.sleep(0.1)
             rclpy.spin_once(self, timeout_sec=0.1)
+            if (time.time() - starting_time) > 6.0:
+                print("moveit timeout")
+                break #timeout
 
         self.get_logger().info('Goal reached.')
         self.ik_solution = None
@@ -387,7 +391,7 @@ class ArmControl(Node):
             time.sleep(0.1)
             rclpy.spin_once(self, timeout_sec=0.1)
         current_ee_pose = copy.copy(self.current_ee_pose)
-        waypoints: list[np.array] = calculate_waypoints(current_xyz=current_ee_pose, goal_xyz=[x, y, z], num_waypoints=1)
+        waypoints: list[np.array] = calculate_waypoints(current_xyz=current_ee_pose, goal_xyz=[x, y, z], num_waypoints=2)
 
         for wp in waypoints:
             x, y, z = wp
@@ -403,7 +407,7 @@ class ArmControl(Node):
             self.get_logger().info('Waiting for getting to the goal.')
 
             while not self.joint_is_reach(self.ik_solution):
-                time.sleep(0.2)
+                time.sleep(0.1)
                 rclpy.spin_once(self, timeout_sec=0.1)
 
             self.get_logger().info('Goal reached.')

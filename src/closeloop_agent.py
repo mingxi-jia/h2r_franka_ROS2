@@ -51,6 +51,7 @@ class Actor():
         if experiment_folder is not None:
             from agents.openvla import OpenVLAAgent
             self.agent = OpenVLAAgent(experiment_folder, is_test=True)
+            sys.stdin.flush() # clean keyboard buffer
             self.instruction = input("what is the instruction for this episode: ")
         else:
             print("No model loaded. Testing mode.")
@@ -118,13 +119,13 @@ class Actor():
             ee_pose = self.cloud_synchronizer.get_ee_pose()
             raw_multiview_rgbs = self.cloud_synchronizer.get_raw_rgbs()
             raw_multiview_depths = self.cloud_synchronizer.get_raw_depths()
-            time.sleep(1.0)
+            time.sleep(0.3)
             print("waiting for obs")
         multiview_rgbs, multiview_depths = copy.copy(raw_multiview_rgbs), copy.copy(raw_multiview_depths)
         ee_pose = copy.copy(ee_pose)
         ee_pose = ee_pose['xyz_RT_base'] + ee_pose['qxqyqzqw_RT_base']
         sensor_dict = {'rgbs': multiview_rgbs, 
-                       'depth': multiview_depths,
+                       'depths': multiview_depths,
                        'ee_pose': ee_pose,}
         return sensor_dict
     
@@ -137,6 +138,7 @@ class Actor():
                 depth = sensor_dict['depths'][self.camera_name]
                 current_pose = sensor_dict['ee_pose']
                 action_rel = self.agent.act(rgb, self.instruction)
+                print(action_rel)
                 self.move_robot_by_relative_action(current_pose, action_rel)
 
     def test_action_loop(self):
@@ -149,13 +151,21 @@ class Actor():
             current_pose = sensor_dict['ee_pose']
             self.move_robot_by_relative_action(current_pose, action_rel)
 
+    def test_collision_avoidance(self):
+        self.robot.reset()
+        for step in example_data:
+            action_rel = step['action']
+            print(action_rel)
+            sensor_dict = self.get_observation()
+            current_pose = sensor_dict['ee_pose']
+            self.move_robot_by_relative_action(current_pose, action_rel)
 
 def main(args=None):
     rclpy.init(args=args)
-    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug"
-    actor = Actor('dave')
-    # actor.action_loop()
-    actor.test_action_loop()
+    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1223demo4easy"
+    actor = Actor('dave', experiment_folder)
+    actor.action_loop()
+    # actor.test_action_loop()
 
 if __name__ == '__main__':
     main()

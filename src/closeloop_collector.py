@@ -155,7 +155,7 @@ class SynchronizedDatasetCollector(Node):
         gripper_action_data = np.array(gripper_action.buttons[0])
 
         # start saving only when there are 
-        if (twist_action_data[:2] > 0.).any():
+        if (abs(twist_action_data[:2]) > 0.).any():
             # only check x and y because (if four dof) other twist command have auto compensation
             self.saving_flag = True
             # self.get_logger().info("saving_flag triggered by valid action inputs.")

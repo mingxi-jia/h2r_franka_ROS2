@@ -3,6 +3,7 @@
 /.idea
 
 /LEPP
+/raw_datasets
 /src/*.npy
 /src/data
 /src/demo_rss
