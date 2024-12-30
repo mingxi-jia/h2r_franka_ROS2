@@ -18,7 +18,7 @@ from panda_utils.panda_arm import ArmControl, DummyRobot
 from panda_utils.configs import PICKPLACE_JOINT_HOME
 
 # from agents.gem import GEM
-from LEPP.agent import GEMAgent
+from LEPP.gem_agent import GEMAgent
 from agents.openvla import OpenVLAAgent
             
 
@@ -53,14 +53,14 @@ class PickPlaceActor():
         # self.cloud_synchronizer.send_homing_goal()
         self.robot.open_gripper()
 
-        self.intrinsics = self.cloud_synchronizer.get_all_camera_intrinsics()
-        self.extrinsics = self.cloud_synchronizer.get_all_camera_extrinsics()
+        # self.intrinsics = self.cloud_synchronizer.get_all_camera_intrinsics()
+        # self.extrinsics = self.cloud_synchronizer.get_all_camera_extrinsics()
 
         # initialize agent
         if agent_type == 'gem':
-            self.agent = GEMAgent(experiment_folder)
+            self.agent = GEMAgent(experiment_folder, intrinsics=self.cloud_synchronizer.camera_intrinsics, extrinsics=self.cloud_synchronizer.camera_extrinsics,)
         elif agent_type == 'openvla':
-            self.agent = OpenVLAAgent(experiment_folder, is_test=True)
+            self.agent = OpenVLAAgent(experiment_folder)
 
         # self.raw_multiview_rgbs = None
         # self.raw_multiview_depths = None
@@ -92,18 +92,20 @@ class PickPlaceActor():
             pick_obj = input("Type in pick object:")
             place_obj = input("Type in place object:")
             instruction = {'instruction': f'pick {pick_obj} and place into {place_obj}', 'pick_obj': pick_obj, 'place_obj': place_obj}
-            
+            print(f"AGENT: the input instruction is {instruction}")
+
             rgbs, depths = self.get_observation()
-            observation_dict = {'rgbs': rgbs, "depths":depths, "instruction":instruction}
-            xyr_actions = self.agent.pickplace(observation_dict)
-            if xyr_actions is not None:
-                self.robot.pick(*xyr_actions['pick'])
-                self.robot.place(*xyr_actions['place'])
+            observation_dict = {'rgbs': rgbs, "depths": depths, "instruction":instruction}
+            xyr_actions, primitive = self.agent.pickplace(observation_dict)
+            if primitive is not None:
+                if primitive == 'pickplace':
+                    self.robot.pick(*xyr_actions['pick'])
+                    self.robot.place(*xyr_actions['place'])
+                elif primitive == 'pull':
+                    self.robot.push(xyr_actions['pick'], xyr_actions['place'])
             else:
                 print("robot action is invalid")
 
-            # self.robot.pick(0.45, 0.2, np.pi/2)
-            # self.robot.place(0.45, -0.2, 0.)
             
     def print_dataset_info(self):
         pass
@@ -115,8 +117,8 @@ class PickPlaceActor():
 
 def main():
     rclpy.init()
-    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
-    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0"
+    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue-demo1rotation"
+    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1229demo1rotation-aug150"
     agent_type = 'gem'
     actor = PickPlaceActor(experiment_folder, agent_type)
     try:

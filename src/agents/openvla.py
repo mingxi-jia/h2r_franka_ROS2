@@ -16,7 +16,8 @@ from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
 from lepp.vision_utils import getTopDownProjectImg, get_crop, convert_robot_action_to_pixel_action, transform, convert_pixel_action_to_robot_action
-from lepp.real_dataset_processor import fuse_text_and_visual_maps, preprocess_obs, de_preprocess_action, load_yaml, fuse_text_and_visual_maps, preprocess_topdown_rgbd
+from lepp.real_dataset_processor import (fuse_text_and_visual_maps, preprocess_obs, de_preprocess_action, load_yaml, fuse_text_and_visual_maps, preprocess_topdown_rgbd,
+                                         image_rot270)
 
 def zoom_in(rgb, percentage=0.6):
     height, width, channel = rgb.shape
@@ -24,18 +25,18 @@ def zoom_in(rgb, percentage=0.6):
     image_center = (height//2, width//2)
     return rgb[image_center[0]-zoomed_height//2:image_center[0]+zoomed_height//2, image_center[1]-zoomed_width//2:image_center[1]+zoomed_width//2]
 
-def preprocess_rgb(rgb: np.array, is_test: bool):
+def preprocess_rgb(rgb: np.array, is_aug: bool):
     assert rgb.dtype == np.uint8
     # crop to a square 480 480
     height, width, channel = rgb.shape
     rgb = rgb[:, width//2-height//2:width//2+height//2]
     # resize to 224x224 as used in openVLA
-    # rgb = zoom_in(rgb)
+    rgb = zoom_in(rgb, percentage=0.45)
     rgb = cv2.resize(rgb, (224, 224), 
                interpolation = cv2.INTER_LINEAR)
-    if is_test:
+    if is_aug:
         rgb = apply_center_crop(rgb)
-    return rgb
+    return rgb 
 
 def apply_center_crop(rgb: np.array):
     original_size = rgb.shape[:2]
@@ -74,7 +75,7 @@ def construct_delta_action_from_abs_poses(pose_t: np.array, pose_t_plus_1: np.ar
     return delta_action
 
 class OpenVLAAgent:
-    def __init__(self, experiment_folder, is_test=True) -> None:
+    def __init__(self, experiment_folder: str) -> None:
         print("AGENT: initializing OpenVLA agent")
 
         self.height, self.width, self.channel = 224, 224, 3
@@ -103,7 +104,7 @@ class OpenVLAAgent:
                 norm_stats = json.load(f)
             self.vla.norm_stats = norm_stats
         
-        self.is_test = is_test
+        self.is_aug = True if 'image_aug' in experiment_folder else False
 
     def act(self, image: np.array, instruction: str):
         image = np.asarray(preprocess_rgb(image, is_test=self.is_test), dtype=np.uint8)
@@ -123,7 +124,11 @@ class OpenVLAAgent:
 
         image = multiview_rgbs['kevin']
         image, _ = preprocess_topdown_rgbd(image, np.zeros_like(image))
+        image = image_rot270(image)
+
         image = np.asarray(image, dtype=np.uint8)
+        if self.is_aug:
+            image = apply_center_crop(image)
 
         prompt = f"In: What action should the robot take to {pick_instruction}?\nOut:"
         inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
@@ -140,11 +145,13 @@ class OpenVLAAgent:
         pick_robot_action = convert_pixel_action_to_robot_action(p0_pixel_action)
         place_robot_action = convert_pixel_action_to_robot_action(p1_pixel_action)
 
-        return {'pick': pick_robot_action, 'place': place_robot_action}
+        primitive = 'pickplace' #TODO
+
+        return {'pick': pick_robot_action, 'place': place_robot_action}, primitive
 
 
 if __name__ == "__main__":
-    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug"
+    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1225demo20"
     agent = OpenVLAAgent(experiment_folder)
     image = np.random.random([480,640,3]) * 255
     image = image.astype(np.uint8)

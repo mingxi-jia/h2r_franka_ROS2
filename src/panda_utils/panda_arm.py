@@ -81,6 +81,8 @@ class ArmControl(Node):
         self.homing_action_triggered = False
         self.remote_grasp_triggered = False
 
+        self.open_gripper()
+        time.sleep(2.0)
         self.robot_reset_by_JOINT()
 
     #----------------------------low-level apis------------------------------
@@ -313,11 +315,11 @@ class ArmControl(Node):
 
         goal_msg.request.goal_constraints.append(constraints)
         goal_msg.request.num_planning_attempts = 10
-        goal_msg.request.allowed_planning_time = 0.3
+        goal_msg.request.allowed_planning_time = 0.1
         goal_msg.request.group_name = 'fr3_arm'
         goal_msg.request.pipeline_id = 'move_group'
-        goal_msg.request.max_velocity_scaling_factor = 0.3
-        goal_msg.request.max_acceleration_scaling_factor = 0.3
+        goal_msg.request.max_velocity_scaling_factor = 0.4
+        goal_msg.request.max_acceleration_scaling_factor = 0.4
         # print(goal_msg)
 
         self.get_logger().info('Sending motion plan goal.')
@@ -335,6 +337,14 @@ class ArmControl(Node):
     def result_callback(self, future):
         result = future.result().result
         self.get_logger().info(f'Motion plan result: {result.error_code}')
+
+    def clear_cache(self):
+        self.current_joint_state = None
+        self.ik_solution = None
+        self.current_ee_pose = None
+        self.grasp_action_triggered = False
+        self.homing_action_triggered = False
+        self.remote_grasp_triggered = False
 
     #----------------------------high-level apis------------------------------
     def joint_is_reach(self, ik_solution: dict):
@@ -376,7 +386,7 @@ class ArmControl(Node):
 
         starting_time = time.time()
         while not self.joint_is_reach(self.ik_solution):
-            time.sleep(0.1)
+            time.sleep(0.01)
             rclpy.spin_once(self, timeout_sec=0.1)
             if (time.time() - starting_time) > 6.0:
                 print("moveit timeout")
@@ -395,23 +405,7 @@ class ArmControl(Node):
 
         for wp in waypoints:
             x, y, z = wp
-            goto_msg = PoseStamped()
-            goto_msg.pose.position.x = x
-            goto_msg.pose.position.y = y
-            goto_msg.pose.position.z = z
-            goto_msg.pose.orientation.x = quaternion_xyzw[0]
-            goto_msg.pose.orientation.y = quaternion_xyzw[1]
-            goto_msg.pose.orientation.z = quaternion_xyzw[2]
-            goto_msg.pose.orientation.w = quaternion_xyzw[3]
-            self.ik_request(goto_msg)
-            self.get_logger().info('Waiting for getting to the goal.')
-
-            while not self.joint_is_reach(self.ik_solution):
-                time.sleep(0.1)
-                rclpy.spin_once(self, timeout_sec=0.1)
-
-            self.get_logger().info('Goal reached.')
-            self.ik_solution = None
+            self.goto(x, y, z, quaternion_xyzw)
 
     def reset(self):
         self.robot_reset_by_JOINT()
@@ -438,6 +432,8 @@ class ArmControl(Node):
         self.open_gripper()
         self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
 
+    def push(self, ):
+        pass
 class DummyRobot():
     def __init__(self):
         pass

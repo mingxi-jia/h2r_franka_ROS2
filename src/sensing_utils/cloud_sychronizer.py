@@ -195,8 +195,8 @@ class CloudSynchronizer(Node):
     def get_all_camera_extrinsics(self):
         for cam in self.camera_names:
             self.get_logger().info(f"Initializing {cam} pose.")
-            self.camera_intrinsics[cam] = self.get_camera_extrinsics(cam)
-        return self.camera_intrinsics
+            self.camera_extrinsics[cam] = self.get_camera_extrinsics(cam)
+        return self.camera_extrinsics
     
     def update_inhand_extrinsic(self):
         cam = self.INHAND_CAMERA_NAME
@@ -299,7 +299,7 @@ class CloudSynchronizer(Node):
     def homing_result_callback(self, future):
         result = future.result().result
         self.get_logger().info(f'Homing result: {result}')
-
+    
 def main():
     rclpy.init()
     collector = CloudSynchronizer('closeloop')

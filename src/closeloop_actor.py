@@ -1,3 +1,4 @@
+import os
 import sys
 import copy
 import time
@@ -53,6 +54,7 @@ class Actor():
             self.agent = OpenVLAAgent(experiment_folder, is_test=True)
             sys.stdin.flush() # clean keyboard buffer
             self.instruction = input("what is the instruction for this episode: ")
+            print(f"CLOSELOOP ACTOR: RECEIVING INSTRUCTION {self.instruction}")
         else:
             print("No model loaded. Testing mode.")
         
@@ -91,20 +93,22 @@ class Actor():
         goal_rotation = R.from_euler('XYZ', action_rel[3:6]).as_matrix() @ current_pose_R
         goal_pose_quat = R.from_matrix(goal_rotation).as_quat()
         
-        self.robot.goto(x, y, z, goal_pose_quat)
+        if self.acting:
+            self.robot.goto(x, y, z, goal_pose_quat)
 
-        gripper_action = int(action_rel[6])
-        if gripper_action != self.gripper_state:
-            self.gripper_state = gripper_action
-            if gripper_action == 0:
-                self.robot.close_gripper()
-            else:
-                self.robot.open_gripper()
+            gripper_action = round(action_rel[6])
+            if gripper_action != self.gripper_state:
+                self.gripper_state = gripper_action
+                if gripper_action == 0:
+                    self.robot.close_gripper()
+                else:
+                    self.robot.open_gripper()
         
 
     def start_new_episode(self):
         """Starts a new episode after confirming the robot reset."""
         self.gripper_state = 1
+        self.robot.clear_cache()
         self.robot.open_gripper()
         self.robot.robot_reset_by_JOINT()
         # 
@@ -119,7 +123,7 @@ class Actor():
             ee_pose = self.cloud_synchronizer.get_ee_pose()
             raw_multiview_rgbs = self.cloud_synchronizer.get_raw_rgbs()
             raw_multiview_depths = self.cloud_synchronizer.get_raw_depths()
-            time.sleep(0.3)
+            time.sleep(0.1)
             print("waiting for obs")
         multiview_rgbs, multiview_depths = copy.copy(raw_multiview_rgbs), copy.copy(raw_multiview_depths)
         ee_pose = copy.copy(ee_pose)
@@ -162,7 +166,8 @@ class Actor():
 
 def main(args=None):
     rclpy.init(args=args)
-    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1223demo4easy"
+    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1225demo20"
+    assert os.path.exists(experiment_folder), f"{experiment_folder} doesn't exist"
     actor = Actor('dave', experiment_folder)
     actor.action_loop()
     # actor.test_action_loop()

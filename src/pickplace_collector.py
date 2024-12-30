@@ -55,35 +55,10 @@ class PickPlaceCollector():
         # Thread for keyboard input
         self.keyboard_thread = threading.Thread(target=self.keyboard_listener, daemon=True)
         self.keyboard_thread.start()
-
-        # Thread for keyboard input
-        self.grasp_thread = threading.Thread(target=self.grasp_listener, daemon=True)
-        self.grasp_thread.start()
-        
     
     def spin_cloud_proxy(self):
         rclpy.spin(self.cloud_synchronizer)
 
-    def grasp_listener(self):
-        def on_press(key):
-            try:
-                if key.char == '0':  
-                    if self.cloud_synchronizer.grasping:
-                        self.cloud_synchronizer.send_homing_goal()
-                        self.cloud_synchronizer.grasping = False
-                    else:
-                        self.cloud_synchronizer.send_grasp_goal()
-                        self.cloud_synchronizer.grasping = True
-                    time.sleep(0.5)
-
-            except AttributeError:
-                pass
-            except Exception as e:
-                print(f"Unhandled error in keyboard listener: {e}")
-
-        with keyboard.Listener(on_press=on_press) as listener:
-            listener.join()
-        
     def keyboard_listener(self):
         def on_press(key):
             try:
@@ -112,16 +87,15 @@ class PickPlaceCollector():
                     save_dict_data(self.episode_path, "pick_pose", ee_pose)
                     print(ee_pose)
                     print("save pick loc.")
-                    # self.close_gripper()
+                    self.cloud_synchronizer.send_grasp_goal()
 
                 elif key.char == '2':  # save place loc
                     ee_pose = self.cloud_synchronizer.get_ee_pose()
                     save_dict_data(self.episode_path, "place_pose", ee_pose)
                     
                     print("save place loc.")
-                    # self.open_gripper()
+                    self.cloud_synchronizer.send_homing_goal()
 
-                elif key.char == '=':  # continue
                     valid = self.check_valid_previous_demo()
                     if valid:
                         self.index += 1
