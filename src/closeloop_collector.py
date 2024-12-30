@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.task import Future
 
+from cv_bridge import CvBridge
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 from std_srvs.srv import Trigger  # Import for pause service
 from sensor_msgs.msg import Image, JointState, Joy
@@ -78,6 +79,8 @@ class SynchronizedDatasetCollector(Node):
         self.pause_servo_client = self.create_client(Trigger, '/servo_node/pause_servo')
         self.start_servo_client = self.create_client(Trigger, '/servo_node/start_servo')
 
+        self.bridge = CvBridge()
+
         # prepare dataset meta
         repo = git.Repo(search_parent_directories=True)
         sha = repo.head.object.hexsha
@@ -142,7 +145,8 @@ class SynchronizedDatasetCollector(Node):
         # self.get_logger().info("sync_callback triggered.")
         # Collect synchronized data
         rgb_data = np.array(rgb.data).reshape((rgb.height, rgb.width, -1))
-        depth_data = np.array(depth.data).reshape((depth.height, depth.width, -1))
+        # depth_data = np.array(depth.data).reshape((depth.height, depth.width, -1))
+        depth_data = self.bridge.imgmsg_to_cv2(depth, "16UC1").astype(np.float32) / 1000
         twist_action = action_stamped.twist
         twist_action_data = np.array([twist_action.linear.x, twist_action.linear.y, twist_action.linear.z,
                                 twist_action.angular.x, twist_action.angular.y, twist_action.angular.z])

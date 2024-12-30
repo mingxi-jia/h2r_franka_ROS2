@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.task import Future
 
+from cv_bridge import CvBridge
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 from std_srvs.srv import Trigger  # Import for pause service
 from sensor_msgs.msg import Image, JointState, Joy
@@ -28,6 +29,16 @@ def save_dict_to_yaml(data, filename):
     with open(filename, 'w') as yaml_file:
         yaml.dump(data, yaml_file, default_flow_style=False)
 
+def save_dict_data(root_path, modality: str, data: dict):
+    # convert numpy array to list
+    for key, value in data.items():
+        if isinstance(value, (np.ndarray)):
+            data[key] = value.tolist()
+
+    yaml_file = os.path.join(root_path, f"{modality}.yaml")
+    with open(yaml_file, 'w') as outfile:
+        yaml.dump(data, outfile, default_flow_style=False)
+
 class SynchronizedDatasetCollector(Node):
     def __init__(self):
         super().__init__('synchronized_dataset_collector')
@@ -51,6 +62,8 @@ class SynchronizedDatasetCollector(Node):
         self.franka_joint_sub = Subscriber(self, JointState, '/joint_states')
         self.gripper_action_sub = Subscriber(self, Joy, '/spacemouse/grasp_signals')
         self.get_logger().info("All data subscriber ready.")
+
+        self.bridge = CvBridge()
 
         # Synchronizer
         self.ts = ApproximateTimeSynchronizer(
@@ -149,11 +162,11 @@ class SynchronizedDatasetCollector(Node):
         # self.get_logger().info("sync_callback triggered.")
         # Collect synchronized data
         rgb_data_dave = np.array(rgb1.data).reshape((rgb1.height, rgb1.width, -1))
-        depth_data_dave = np.array(depth1.data).reshape((depth1.height, depth1.width, -1))
+        depth_data_dave = self.bridge.imgmsg_to_cv2(depth1, "16UC1").astype(np.float32) / 1000
         rgb_data_stuart = np.array(rgb2.data).reshape((rgb2.height, rgb2.width, -1))
-        depth_data_stuart = np.array(depth2.data).reshape((depth2.height, depth2.width, -1))
+        depth_data_stuart = self.bridge.imgmsg_to_cv2(depth2, "16UC1").astype(np.float32) / 1000
         rgb_data_mel = np.array(rgb3.data).reshape((rgb3.height, rgb3.width, -1))
-        depth_data_mel = np.array(depth3.data).reshape((depth3.height, depth3.width, -1))
+        depth_data_mel = self.bridge.imgmsg_to_cv2(depth3, "16UC1").astype(np.float32) / 1000
         twist_action = action_stamped.twist
         twist_action_data = np.array([twist_action.linear.x, twist_action.linear.y, twist_action.linear.z,
                                 twist_action.angular.x, twist_action.angular.y, twist_action.angular.z])
