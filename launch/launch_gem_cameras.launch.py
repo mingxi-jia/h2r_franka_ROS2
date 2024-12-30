@@ -26,8 +26,8 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3071.0,
-                    'rgb_camera.exposure':300,
+                    'rgb_camera.white_balance':3200.0,
+                    'rgb_camera.exposure':260,
                     'align_depth.enable': True,
                     'motion_module.global_time_enabled': True,
                     'depth_module.global_time_enabled': True,
@@ -39,6 +39,7 @@ def generate_launch_description():
                     'color_height': img_height,
                     'color_fps': fps,
                     'camera_name': 'kevin',
+                    # 'pointcloud.enable': True
                 }]
             ),
             Node(
@@ -59,7 +60,7 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3293.0,
+                    'rgb_camera.white_balance':3800.0,
                     'rgb_camera.exposure':100,
                     'enable_infra': False, 
                     'align_depth.enable': True,
@@ -70,6 +71,7 @@ def generate_launch_description():
                     'color_height': img_height,
                     'color_fps': fps,
                     'camera_name': 'bob',
+                    # 'pointcloud.enable': True
                 }]
             ),
             Node(
@@ -90,7 +92,7 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3330.0,
+                    'rgb_camera.white_balance':3800.0,
                     'rgb_camera.exposure':100,
                     'enable_infra': False, 
                     'align_depth.enable': True,
@@ -101,20 +103,34 @@ def generate_launch_description():
                     'color_height': img_height,
                     'color_fps': fps,
                     'camera_name': 'mel',
+
+                    # 'pointcloud.enable': True
                 }]
             ),
+            
         ]),
 
         # Static transforms for each camera
         
+        # Static transforms for each camera
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='stuart_link_broadcaster',
+            arguments=['0.0197533', '0.370377', '0.613283', '0.10964', '0.397813', '-0.248267', '0.876406', 'fr3_link0', 'stuart_link']
+        ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='kevin_link_broadcaster',
-            # arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
-            arguments=['0.649525', '-0.025157', '0.998795', '0.515498', '0.481149', '-0.498148', '0.504586', 'fr3_link0', 'kevin_link']
+            arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
         ),
-        
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='tim_link_broadcaster',
+            arguments=['0.0804052', '0.00460167', '-0.121265', '-0.0058877', '-0.70644', '-0.00265498', '0.707743', 'fr3_hand_tcp', 'tim_link']
+        ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -126,6 +142,12 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='bob_link_broadcaster',
             arguments=['0.55482', '0.493489', '0.638426', '0.321738', '0.30324', '-0.611973', '0.655759', 'fr3_link0', 'bob_link']
+        ),
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='dave_link_broadcaster',
+            arguments=['1.27683', '-0.0480804', '0.583822', '-0.287011', '-0.00599455', '0.957905', '-0.00244425', 'fr3_link0', 'dave_link']
         ),
         Node(
             package='tf2_ros',
