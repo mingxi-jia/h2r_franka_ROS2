@@ -26,7 +26,7 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3200.0,
+                    'rgb_camera.white_balance':3400.0,
                     'rgb_camera.exposure':260,
                     'align_depth.enable': True,
                     'motion_module.global_time_enabled': True,
@@ -123,7 +123,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='kevin_link_broadcaster',
-            arguments=['0.665721', '-0.0293555', '1.00848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
+            arguments=['0.665721', '-0.0293555', '1.02848', '0.504637', '0.490822', '-0.487034', '0.516946', 'fr3_link0', 'kevin_link']
         ),
         Node(
             package='tf2_ros',
@@ -135,7 +135,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='mel_link_broadcaster',
-            arguments=['0.509716', '-0.521368', '0.688352', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
+            arguments=['0.509716', '-0.521368', '0.683352', '-0.256824', '0.252428', '0.667639', '0.651597', 'fr3_link0', 'mel_link']
         ),
         Node(
             package='tf2_ros',

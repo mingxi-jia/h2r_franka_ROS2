@@ -33,6 +33,8 @@ def is_none_in_dict(data_dict: dict):
 
 class PickPlaceActor():
     def __init__(self, experiment_folder, agent_type='gem', enable_robot=True) -> None:
+        assert os.path.exists(experiment_folder), f"{experiment_folder} does not exist."
+
         self.executor = MultiThreadedExecutor()
 
         print("initializing cloud proxy")
@@ -58,7 +60,7 @@ class PickPlaceActor():
 
         # initialize agent
         if agent_type == 'gem':
-            self.agent = GEMAgent(experiment_folder, intrinsics=self.cloud_synchronizer.camera_intrinsics, extrinsics=self.cloud_synchronizer.camera_extrinsics,)
+            self.agent = GEMAgent(experiment_folder)
         elif agent_type == 'openvla':
             self.agent = OpenVLAAgent(experiment_folder)
 
@@ -99,9 +101,9 @@ class PickPlaceActor():
             xyr_actions, primitive = self.agent.pickplace(observation_dict)
             if primitive is not None:
                 if primitive == 'pickplace':
-                    self.robot.pick(*xyr_actions['pick'])
-                    self.robot.place(*xyr_actions['place'])
-                elif primitive == 'pull':
+                    self.robot.pick(*xyr_actions['pick'], z=0.07)
+                    self.robot.place(*xyr_actions['place'], z=0.11)
+                elif primitive == 'push':
                     self.robot.push(xyr_actions['pick'], xyr_actions['place'])
             else:
                 print("robot action is invalid")
@@ -115,11 +117,24 @@ class PickPlaceActor():
         self.cloud_synchronizer.destroy_node()
         self.robot.destroy_node()
 
+def get_agent_type(experiment_folder):
+    if experiment_folder.split('/')[-1].startswith('LEPP'):
+        agent_type = 'gem'
+    elif experiment_folder.split('/')[-1].startswith('openvla'): 
+        agent_type = 'openvla'
+    elif experiment_folder.split('/')[-1].startswith('cliport'): 
+        agent_type = 'cliport'
+    else:
+        NotImplementedError
+    print(f"AGENT: Currently using {agent_type}")
+    return agent_type
+
 def main():
     rclpy.init()
-    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue-demo1rotation"
-    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1229demo1rotation-aug150"
-    agent_type = 'gem'
+    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train3/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0101demo6object-aug150"
+    agent_type = get_agent_type(experiment_folder)
+    
     actor = PickPlaceActor(experiment_folder, agent_type)
     try:
         actor.start_acting_loop()

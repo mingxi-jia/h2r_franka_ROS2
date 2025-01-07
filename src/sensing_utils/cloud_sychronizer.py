@@ -302,7 +302,7 @@ class CloudSynchronizer(Node):
     
 def main():
     rclpy.init()
-    collector = CloudSynchronizer('closeloop')
+    collector = CloudSynchronizer('gem')
     try:
         rclpy.spin(collector)
     except (KeyboardInterrupt):
