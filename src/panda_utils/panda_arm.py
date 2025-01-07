@@ -415,10 +415,10 @@ class ArmControl(Node):
         if z == None:
             z = self.z_min
         quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
-        self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
-        self.waypoints_goto(x, y, self.z_min, quaternion_xyzw)
+        self.goto(x, y, z + 0.2, quaternion_xyzw)
+        self.waypoints_goto(x, y, z, quaternion_xyzw)
         self.close_gripper()
-        self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
+        self.goto(x, y, z + 0.2, quaternion_xyzw)
 
 
     def place(self, x, y, r, z=None):
@@ -427,13 +427,29 @@ class ArmControl(Node):
             z = self.z_min
         quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
         place_z_offset = 0.05
-        self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
-        self.waypoints_goto(x, y, self.z_min + place_z_offset, quaternion_xyzw)
+        self.goto(x, y, z + 0.2, quaternion_xyzw)
+        self.waypoints_goto(x, y, z + place_z_offset, quaternion_xyzw)
         self.open_gripper()
-        self.goto(x, y, self.z_min + 0.2, quaternion_xyzw)
+        self.goto(x, y, z + 0.2, quaternion_xyzw)
 
-    def push(self, ):
-        pass
+    def push(self, push_start_action, push_end_action):
+        x1, y1, r1 = push_start_action
+        quaternion_xyzw1 = R.from_euler('XYZ', [np.pi, 0., r1]).as_quat()
+        x2, y2, r2 = push_end_action
+        # quaternion_xyzw2 = R.from_euler('XYZ', [np.pi, 0., r2]).as_quat()
+        quaternion_xyzw2 = quaternion_xyzw1
+
+        z_max, z_min = 0.3, 0.1
+        # go to start pose
+        self.goto(x1, y1, z_max, quaternion_xyzw1)
+        self.waypoints_goto(x1, y1, z_min, quaternion_xyzw1)
+        self.close_gripper()
+        # push
+        self.waypoints_goto(x2, y2, z_min, quaternion_xyzw2)
+        self.open_gripper()
+        self.goto(x2, y2, z_max, quaternion_xyzw2)
+        
+
 class DummyRobot():
     def __init__(self):
         pass
