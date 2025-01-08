@@ -117,7 +117,7 @@ class CloudSynchronizer(Node):
         self.camera_extrinsics: dict = self.get_all_camera_extrinsics()
         self.get_logger().info("Initializing camera intrinsics.")
         self.camera_intrinsics: dict = self.get_all_camera_intrinsics()
-
+        self.get_logger().info("Camera ex/intrinsics done.")
 
         self.grasp_client = ActionClient(self, Grasp, '/fr3_gripper/grasp')
         self.grasp_client.wait_for_server()
