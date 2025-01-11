@@ -135,15 +135,12 @@ class OpenVLAAgent:
         multiview_rgbs, multiview_depths, instruction = observation_dict['rgbs'], observation_dict['depths'], observation_dict['instruction']
 
         image = multiview_rgbs['kevin']
-        image, _ = preprocess_topdown_rgbd(image, np.zeros_like(image))
-        image = image_rot270(image)
-
-        image = np.asarray(image, dtype=np.uint8)
-
+        topdown_rgb = preprocess_openvla_obs(multiview_rgbs, multiview_depths, self.intrinsics, self.extrinsics)
+        
         pick_instruction = f"pick {instruction['pick_obj']}"
-        pick_xyr = self.infererence(image, pick_instruction)
+        pick_xyr = self.infererence(topdown_rgb, pick_instruction)
         place_instruction = f"place on {instruction['place_obj']}"
-        place_xyr = self.infererence(image, place_instruction)
+        place_xyr = self.infererence(topdown_rgb, place_instruction)
 
         p0_pixel_action, p1_pixel_action = de_preprocess_action(pick_xyr, place_xyr)
 
