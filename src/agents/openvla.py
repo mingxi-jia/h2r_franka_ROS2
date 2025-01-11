@@ -1,9 +1,9 @@
 import torch
 from transformers import AutoConfig, AutoImageProcessor, AutoModelForVision2Seq, AutoProcessor
 
-from openVLA.prismatic.extern.hf.configuration_prismatic import OpenVLAConfig
-from openVLA.prismatic.extern.hf.modeling_prismatic import OpenVLAForActionPrediction
-from openVLA.prismatic.extern.hf.processing_prismatic import PrismaticImageProcessor, PrismaticProcessor
+from prismatic.extern.hf.configuration_prismatic import OpenVLAConfig
+from prismatic.extern.hf.modeling_prismatic import OpenVLAForActionPrediction
+from prismatic.extern.hf.processing_prismatic import PrismaticImageProcessor, PrismaticProcessor
 
 from tqdm import tqdm
 import numpy as np
@@ -119,26 +119,16 @@ class OpenVLAAgent:
 
         multiview_rgbs, instruction = observation_dict['rgbs'], observation_dict['instruction']
 
-        pick_instruction = f"pick {instruction['pick_obj']}"
-        place_instruction = f"place on {instruction['place_obj']}"
-
         image = multiview_rgbs['kevin']
         image, _ = preprocess_topdown_rgbd(image, np.zeros_like(image))
         image = image_rot270(image)
 
         image = np.asarray(image, dtype=np.uint8)
-        if self.is_aug:
-            image = apply_center_crop(image)
 
-        prompt = f"In: What action should the robot take to {pick_instruction}?\nOut:"
-        inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
-        pick_action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
-        pick_xyr = np.array([pick_action[0]*224, pick_action[1]*224, pick_action[5]*np.pi*2])
-
-        prompt = f"In: What action should the robot take to {place_instruction}?\nOut:"
-        inputs = self.processor(prompt, Image.fromarray(image)).to("cuda:0", dtype=torch.bfloat16)
-        place_action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
-        place_xyr = np.array([place_action[0]*224, place_action[1]*224, place_action[5]*np.pi*2])
+        pick_instruction = f"pick {instruction['pick_obj']}"
+        pick_xyr = self.infererence(image, pick_instruction)
+        place_instruction = f"place on {instruction['place_obj']}"
+        place_xyr = self.infererence(image, place_instruction)
 
         p0_pixel_action, p1_pixel_action = de_preprocess_action(pick_xyr, place_xyr)
 
@@ -149,11 +139,24 @@ class OpenVLAAgent:
 
         return {'pick': pick_robot_action, 'place': place_robot_action}, primitive
 
+    def infererence(self, rgb, instruction):
+        if self.is_aug:
+            rgb = apply_center_crop(rgb)
+        prompt = f"In: What action should the robot take to {instruction}?\nOut:"
+        inputs = self.processor(prompt, Image.fromarray(rgb)).to("cuda:0", dtype=torch.bfloat16)
+        action = self.vla.predict_action(**inputs, unnorm_key=None, do_sample=False)
+        xyr = np.array([action[0]*224, action[1]*224, action[5]*np.pi*2])
+        return xyr
+
 
 if __name__ == "__main__":
-    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1225demo20"
+    dataset_path = "/home/mingxi/mingxi_ws/gem/datasets/franka_pickplace_rotation/franka_pickplace_rotation12"
+    demos = np.load(os.path.join(dataset_path, "processed_demos.npy"), allow_pickle=True)
+    experiment_folder = "/home/mingxi/mingxi_ws/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0107rotation12" 
     agent = OpenVLAAgent(experiment_folder)
-    image = np.random.random([480,640,3]) * 255
-    image = image.astype(np.uint8)
-    action = agent.act(image, "pick mouse and place into box")
-    print(action)
+
+    for step in demos:
+        rgb = step['rgb']
+        pick_instruction = f"pick {step['instruction']['pick_obj']}"
+        action = agent.infererence(rgb, pick_instruction)
+        print(action)
