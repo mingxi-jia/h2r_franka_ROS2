@@ -16,8 +16,9 @@ from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
 from lepp.vision_utils import getTopDownProjectImg, get_crop, convert_robot_action_to_pixel_action, transform, convert_pixel_action_to_robot_action
-from lepp.real_dataset_processor import (fuse_text_and_visual_maps, preprocess_obs, de_preprocess_action, load_yaml, fuse_text_and_visual_maps, preprocess_topdown_rgbd,
+from lepp.real_dataset_processor import (fuse_text_and_visual_maps, de_preprocess_action, load_yaml, fuse_text_and_visual_maps, preprocess_topdown_rgbd,
                                          image_rot270)
+from lepp.clip_utils import get_clip_obs
 
 def zoom_in(rgb, percentage=0.6):
     height, width, channel = rgb.shape
@@ -74,8 +75,18 @@ def construct_delta_action_from_abs_poses(pose_t: np.array, pose_t_plus_1: np.ar
     delta_action[6] = np.asarray(1 - grasp_signal_t_plus_1, dtype=np.float32)
     return delta_action
 
+def preprocess_openvla_obs(multiview_rgbs: dict, multiview_depths: dict, intrinsics: dict, extrinsics: dict):
+    multiview_tfeatures_picking = dict()
+    for k, v in multiview_depths.items():
+        multiview_tfeatures_picking[k] = np.ones_like(v)
+    topdown_rgb, _, _ = get_clip_obs(multiview_rgbs, multiview_depths, multiview_tfeatures_picking, intrinsics, extrinsics)
+    # organize topdown image and actions to robot view point
+    topdown_rgb = image_rot270(topdown_rgb)
+
+    return topdown_rgb
+
 class OpenVLAAgent:
-    def __init__(self, experiment_folder: str) -> None:
+    def __init__(self, experiment_folder: str, intrinsics: np.array, extrinsics: np.array) -> None:
         print("AGENT: initializing OpenVLA agent")
 
         self.height, self.width, self.channel = 224, 224, 3
@@ -87,7 +98,9 @@ class OpenVLAAgent:
 
         # experiment_folder = "/home/mingxi/mingxi_ws/gem/openvla/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug" 
         # Load Processor & VLA
-        # model = "openvla/openvla-7b"
+        use_pretrain = False
+        if use_pretrain:
+            experiment_folder = "openvla/openvla-7b"
         self.processor = AutoProcessor.from_pretrained(experiment_folder, trust_remote_code=True)
         self.vla = AutoModelForVision2Seq.from_pretrained(
             experiment_folder,
@@ -105,6 +118,8 @@ class OpenVLAAgent:
             self.vla.norm_stats = norm_stats
         
         self.is_aug = True if 'image_aug' in experiment_folder else False
+        self.intrinsics = intrinsics
+        self.extrinsics = extrinsics
 
     def act(self, image: np.array, instruction: str):
         image = np.asarray(preprocess_rgb(image, is_test=self.is_test), dtype=np.uint8)
@@ -117,7 +132,7 @@ class OpenVLAAgent:
     def pickplace(self, observation_dict: dict):
         print("AGENT: openvla is processing.")
 
-        multiview_rgbs, instruction = observation_dict['rgbs'], observation_dict['instruction']
+        multiview_rgbs, multiview_depths, instruction = observation_dict['rgbs'], observation_dict['depths'], observation_dict['instruction']
 
         image = multiview_rgbs['kevin']
         image, _ = preprocess_topdown_rgbd(image, np.zeros_like(image))

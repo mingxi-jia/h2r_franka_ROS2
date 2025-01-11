@@ -62,7 +62,7 @@ class PickPlaceActor():
         if agent_type == 'gem':
             self.agent = GEMAgent(experiment_folder)
         elif agent_type == 'openvla':
-            self.agent = OpenVLAAgent(experiment_folder)
+            self.agent = OpenVLAAgent(experiment_folder, self.cloud_synchronizer.camera_intrinsics, self.cloud_synchronizer.camera_extrinsics)
 
         # self.raw_multiview_rgbs = None
         # self.raw_multiview_depths = None
@@ -117,7 +117,7 @@ class PickPlaceActor():
         self.cloud_synchronizer.destroy_node()
         self.robot.destroy_node()
 
-def get_agent_type(experiment_folder):
+def get_agent_type(experiment_folder: str):
     if experiment_folder.split('/')[-1].startswith('LEPP'):
         agent_type = 'gem'
     elif experiment_folder.split('/')[-1].startswith('openvla'): 
@@ -131,8 +131,8 @@ def get_agent_type(experiment_folder):
 
 def main():
     rclpy.init()
-    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train9/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
-    # experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0101demo6object-aug150"
+    # experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train6/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0107rotation12"
     agent_type = get_agent_type(experiment_folder)
     
     actor = PickPlaceActor(experiment_folder, agent_type)
