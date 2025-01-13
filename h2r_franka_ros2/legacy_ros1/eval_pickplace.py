@@ -11,8 +11,8 @@ from instructions import generate_pick_instruction_shape_part
 
 import pickle
 
-from src.envs.env import Env
-import src.simulator.utils as utils
+from h2r_franka_ros2.envs.env import Env
+import h2r_franka_ros2.simulator.utils as utils
 import panda_utils.demo_util_pp as demo_util
 import sys
 
