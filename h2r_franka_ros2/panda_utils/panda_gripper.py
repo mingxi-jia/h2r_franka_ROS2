@@ -1,0 +1,1 @@
+#TODO: separate panda gripper control from cloud_sychronizer and panda_arm

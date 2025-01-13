@@ -17,7 +17,7 @@ from message_filters import Subscriber, ApproximateTimeSynchronizer
 from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint, BoundingVolume, RobotState, JointConstraint
 
 from panda_utils.configs import JOINT_HOME
-from panda_utils.execution import Executor
+from h2r_franka_ros2.legacy.execution import Executor
 
 from agents.openvla import OpenVLAAgent
 

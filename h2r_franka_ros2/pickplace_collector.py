@@ -41,7 +41,7 @@ class PickPlaceCollector():
 
         # initialize dataset
         self.index = 0
-        root_path = "/home/mingxi/code/datasets"
+        root_path = "/home/mingxi/code/raw_datasets"
         self.dataset_path = os.path.join(root_path, task_name, time.strftime("%Y_%m_%d_%H_%M"))
         self.episode_path = os.path.join(self.dataset_path, f"demo_{self.index}")
         os.makedirs(self.dataset_path, exist_ok=True)

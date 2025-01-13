@@ -20,3 +20,5 @@
 
 *.npy
 *.pyc
+
+*__pycache__*
