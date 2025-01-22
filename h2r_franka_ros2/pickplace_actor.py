@@ -19,6 +19,7 @@ from panda_utils.configs import PICKPLACE_JOINT_HOME
 
 # from agents.gem import GEM
 from LEPP.gem_agent import GEMAgent
+from LEPP.cliport_agent import CLIPortAgent
 from agents.openvla import OpenVLAAgent
             
 
@@ -63,7 +64,9 @@ class PickPlaceActor():
             self.agent = GEMAgent(experiment_folder)
         elif agent_type == 'openvla':
             self.agent = OpenVLAAgent(experiment_folder, self.cloud_synchronizer.camera_intrinsics, self.cloud_synchronizer.camera_extrinsics)
-
+        elif agent_type == 'cliport':
+            self.agent = CLIPortAgent(experiment_folder, self.cloud_synchronizer.camera_intrinsics, self.cloud_synchronizer.camera_extrinsics)
+        
         # self.raw_multiview_rgbs = None
         # self.raw_multiview_depths = None
 
@@ -102,7 +105,7 @@ class PickPlaceActor():
             if primitive is not None:
                 if primitive == 'pickplace':
                     self.robot.pick(*xyr_actions['pick'], z=0.075)
-                    self.robot.place(*xyr_actions['place'], z=0.11)
+                    self.robot.place(*xyr_actions['place'], z=0.17)
                 elif primitive == 'push':
                     self.robot.push(xyr_actions['pick'], xyr_actions['place'])
             else:
@@ -131,8 +134,8 @@ def get_agent_type(experiment_folder: str):
 
 def main():
     rclpy.init()
-    # experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train6/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
-    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train10/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train30/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    # experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train16/cliport-unetl-3-none-none-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
     agent_type = get_agent_type(experiment_folder)
     
     actor = PickPlaceActor(experiment_folder, agent_type)

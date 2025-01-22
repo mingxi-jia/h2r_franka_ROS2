@@ -430,7 +430,7 @@ class ArmControl(Node):
         self.goto(x, y, z + 0.2, quaternion_xyzw)
         self.waypoints_goto(x, y, z + place_z_offset, quaternion_xyzw)
         self.open_gripper()
-        self.waypoints_goto(x, y, z + 0.3, quaternion_xyzw)
+        self.waypoints_goto(x, y, z + 0.2, quaternion_xyzw)
 
     def push(self, push_start_action, push_end_action):
         x1, y1, r1 = push_start_action
