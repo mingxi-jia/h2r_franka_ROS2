@@ -26,7 +26,7 @@ def generate_launch_description():
                     'rgb_camera.enable_auto_exposure': False,
                     'depth_module.enable_auto_exposure': False,
                     'rgb_camera.enable_auto_white_balance': False,
-                    'rgb_camera.white_balance':3400.0,
+                    'rgb_camera.white_balance':3800.0,
                     'rgb_camera.exposure':260,
                     'align_depth.enable': True,
                     'motion_module.global_time_enabled': True,
