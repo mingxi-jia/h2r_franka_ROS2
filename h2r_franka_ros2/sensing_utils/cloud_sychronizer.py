@@ -299,12 +299,17 @@ class CloudSynchronizer(Node):
     def homing_result_callback(self, future):
         result = future.result().result
         self.get_logger().info(f'Homing result: {result}')
+
+    def testing_loop(self):
+        while True:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            print(1)
     
 def main():
     rclpy.init()
     collector = CloudSynchronizer('gem')
     try:
-        rclpy.spin(collector)
+        collector.testing_loop()
     except (KeyboardInterrupt):
         pass
     finally:

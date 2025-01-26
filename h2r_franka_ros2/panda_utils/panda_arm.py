@@ -415,10 +415,10 @@ class ArmControl(Node):
         if z == None:
             z = self.z_min
         quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
-        self.waypoints_goto(x, y, z + 0.2, quaternion_xyzw)
+        self.waypoints_goto(x, y, z + 0.15, quaternion_xyzw)
         self.waypoints_goto(x, y, z, quaternion_xyzw)
         self.close_gripper()
-        self.goto(x, y, z + 0.2, quaternion_xyzw)
+        self.goto(x, y, z + 0.15, quaternion_xyzw)
 
 
     def place(self, x, y, r, z=None):
@@ -448,7 +448,20 @@ class ArmControl(Node):
         self.waypoints_goto(x2, y2, z_min, quaternion_xyzw2)
         self.open_gripper()
         self.goto(x2, y2, z_max, quaternion_xyzw2)
-        
+    
+    def place_box(self, box_id, z):
+        box_ys = {'red': -0.16, 'yellow': -0.01, 'green': 0.13}
+        x, r = 0.65, 0.
+        if box_id in box_ys.keys():
+            y = box_ys[box_id]
+        else:
+            print(f"No '{box_id}' box is found. Putting it into red")
+            y = box_ys['red']
+        quaternion_xyzw = R.from_euler('XYZ', [np.pi, 0., r]).as_quat()
+        self.goto(x, y, z + 0.15, quaternion_xyzw)
+        self.waypoints_goto(x, y, z, quaternion_xyzw)
+        self.open_gripper()
+        self.waypoints_goto(x, y, z + 0.15, quaternion_xyzw)
 
 class DummyRobot():
     def __init__(self):
