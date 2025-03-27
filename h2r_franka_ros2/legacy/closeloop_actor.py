@@ -31,7 +31,7 @@ class Actor():
         self.executor_thread.start()
 
         self.acting = False
-        experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug"
+        experiment_folder = "/home/username/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug"
         self.agent = OpenVLAAgent(experiment_folder, is_test=True)
         self.instruction = input("what is the instruction for this episode: ")
         

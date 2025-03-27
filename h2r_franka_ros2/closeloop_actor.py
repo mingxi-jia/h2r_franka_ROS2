@@ -147,7 +147,7 @@ class Actor():
 
     def test_action_loop(self):
         self.robot.reset()
-        example_data = np.load("/home/mingxi/code/datasets/subsampled_demo0.npy", allow_pickle=True)
+        example_data = np.load("/home/username/code/datasets/subsampled_demo0.npy", allow_pickle=True)
         for step in  example_data:
             action_rel = step['action']
             print(action_rel)
@@ -166,7 +166,7 @@ class Actor():
 
 def main(args=None):
     rclpy.init(args=args)
-    experiment_folder = "/home/mingxi/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1225demo20"
+    experiment_folder = "/home/username/code/gem/openVLA/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug-1225demo20"
     assert os.path.exists(experiment_folder), f"{experiment_folder} doesn't exist"
     actor = Actor('dave', experiment_folder)
     actor.action_loop()

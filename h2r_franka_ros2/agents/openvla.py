@@ -96,7 +96,7 @@ class OpenVLAAgent:
         AutoProcessor.register(OpenVLAConfig, PrismaticProcessor)
         AutoModelForVision2Seq.register(OpenVLAConfig, OpenVLAForActionPrediction)
 
-        # experiment_folder = "/home/mingxi/mingxi_ws/gem/openvla/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug" 
+        # experiment_folder = "/home/username/username_ws/gem/openvla/logs/openvla-7b+franka_pick_place_dataset+b2+lr-0.0005+lora-r32+dropout-0.0--image_aug" 
         # Load Processor & VLA
         use_pretrain = False
         if use_pretrain:
@@ -162,9 +162,9 @@ class OpenVLAAgent:
 
 
 if __name__ == "__main__":
-    dataset_path = "/home/mingxi/mingxi_ws/gem/datasets/franka_pickplace_rotation/franka_pickplace_rotation12"
+    dataset_path = "/home/username/username_ws/gem/datasets/franka_pickplace_rotation/franka_pickplace_rotation12"
     demos = np.load(os.path.join(dataset_path, "processed_demos.npy"), allow_pickle=True)
-    experiment_folder = "/home/mingxi/mingxi_ws/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0107rotation12" 
+    experiment_folder = "/home/username/username_ws/gem/openVLA/logs/openvla-7b+openloop_pick_place_dataset+b16+lr-0.0005+lora-r32+dropout-0.0--image_aug-0107rotation12" 
     agent = OpenVLAAgent(experiment_folder)
 
     for step in demos:

@@ -134,8 +134,8 @@ def get_agent_type(experiment_folder: str):
 
 def main():
     rclpy.init()
-    experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train30/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
-    # experiment_folder = "/home/mingxi/code/gem/LEPP/exps/pick-part-in-box-real-n-train16/cliport-unetl-3-none-none-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    experiment_folder = "/home/username/code/gem/LEPP/exps/pick-part-in-box-real-n-train30/LEPP-unetl-score-vit-postLinearMul-3-unetl-eunet-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
+    # experiment_folder = "/home/username/code/gem/LEPP/exps/pick-part-in-box-real-n-train16/cliport-unetl-3-none-none-ParTrue-TopdownFalse-CropTrue-Ratio0.2-Vlmnormal-augTrue"
     agent_type = get_agent_type(experiment_folder)
     
     actor = PickPlaceActor(experiment_folder, agent_type)
