@@ -5,7 +5,7 @@ Please cite this repo if you are using it or part of it.
 @software{h2r_franka_ROS2,
   author = {Jia, Mingxi and Tellex, Stefanie},
   doi = {10.5281/zenodo.15098249},
-  month = {12},
+  month = {3},
   title = {{h2r_franka_ROS2}},
   url = {https://github.com/SaulBatman/h2r_franka_ROS2},
   version = {1.0.0},
