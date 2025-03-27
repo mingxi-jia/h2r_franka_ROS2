@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Jia"
+  given-names: "Mingxi"
+  orcid: "https://orcid.org/0000-0002-6767-2499"
+- family-names: "Tellex"
+  given-names: "Stefanie"
+  orcid: "https://orcid.org/0000-0002-2905-4075"
+title: "h2r_franka_ROS2"
+version: 1.0.0
+doi: 10.5281/zenodo.15098249
+date-released: 2025-03-27
+url: "https://github.com/SaulBatman/h2r_franka_ROS2"

@@ -1,4 +1,18 @@
 # Instructions (ROS2)
+## citation
+Please cite this repo if you are using it or part of it.
+@software{h2r_franka_ROS2,
+  author = {Jia, Mingxi and Tellex, Stefanie},
+  doi = {10.5281/zenodo.15098249},
+  month = {12},
+  title = {{h2r_franka_ROS2}},
+  url = {https://github.com/SaulBatman/h2r_franka_ROS2},
+  version = {1.0.0},
+  year = {2025}
+}
+## documentation
+here is some more info (https://happy-wound-99f.notion.site/Tigress-documentation-15fc376d918d80daab7dfa9f3d2e9d65?pvs=4)
+
 ## robot
 ```
 # (option 1) open robot without moveit
