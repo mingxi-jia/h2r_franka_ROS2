@@ -47,6 +47,8 @@ ros2 launch launch/launch_all_cameras.launch.py
   rosdep install -iyr --from-paths src
   colcon build
   # remember to change the parameters in launch file
+  # please make sure the topics are available and the aruco tag is visible, or
+  # the GUI won't work
   ros2 launch h2r_franka_ROS2/launch/eye_on_base.launch.py # eye-on-base
   ros2 launch h2r_franka_ROS2/launch/eye_in_hand.launch.py # eye-in-hand
 ```
