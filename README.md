@@ -38,6 +38,18 @@ ros2 action send_goal -f /fr3_gripper/homing franka_msgs/action/Homing {}
 # open cameras
 ros2 launch launch/launch_all_cameras.launch.py
 ```
+
+## calibration
+```
+  cd ros_ws/src
+  git clone https://github.com/marcoesposito1988/easy_handeye2
+  cd ros_ws
+  rosdep install -iyr --from-paths src
+  colcon build
+  # remember to change the parameters in launch file
+  ros2 launch h2r_franka_ROS2/launch/eye_on_base.launch.py # eye-on-base
+  ros2 launch h2r_franka_ROS2/launch/eye_in_hand.launch.py # eye-in-hand
+```
 # tricks (ROS2)
 ```
 # rqt
