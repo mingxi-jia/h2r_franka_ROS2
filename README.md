@@ -30,8 +30,8 @@ ros2 launch franka_gripper gripper.launch.py robot_ip:<ip>
 ```
 ## robot commands
 ```
-ros2 action send_goal -f /fr3_gripper/grasp franka_msgs/action/Grasp "{width: 0.00, speed: 0.03, force: 1}"
-ros2 action send_goal -f /fr3_gripper/homing franka_msgs/action/Homing {}
+ros2 action send_goal -f /franka_gripper/grasp franka_msgs/action/Grasp "{width: 0.00, speed: 0.03, force: 1}"
+ros2 action send_goal -f /franka_gripper/homing franka_msgs/action/Homing {}
 ```
 ## cameras
 ```

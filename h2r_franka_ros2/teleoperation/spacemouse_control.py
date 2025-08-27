@@ -35,11 +35,11 @@ class SpacemouseServoPub(Node):
         self.grasp_publisher_ = self.create_publisher(Joy, '/spacemouse/grasp_signals', 50)
         self.get_logger().info(f'spacemouse_servo_pub ready!')
         
-        self.grasp_client = ActionClient(self, Grasp, '/fr3_gripper/grasp')
+        self.grasp_client = ActionClient(self, Grasp, '/franka_gripper/grasp')
         self.grasp_client.wait_for_server()
         self.get_logger().info(f'grasp agent ready!')
 
-        self.homing_client = ActionClient(self, Move, '/fr3_gripper/move')
+        self.homing_client = ActionClient(self, Move, '/franka_gripper/move')
         self.homing_client.wait_for_server()
         self.get_logger().info(f'homing agent ready!')
 

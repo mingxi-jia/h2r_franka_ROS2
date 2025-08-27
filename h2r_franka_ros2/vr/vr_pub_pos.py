@@ -32,7 +32,7 @@ class VRPublisher(Node):
 
         self.gripper_state_sub = self.create_subscription(
             JointState,
-            '/fr3_gripper/joint_states',
+            '/franka_gripper/joint_states',
             self.gripper_state_callback,
             10)
 
