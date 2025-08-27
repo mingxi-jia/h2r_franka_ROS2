@@ -7,7 +7,7 @@ Please cite this repo if you are using it or part of it.
   doi = {10.5281/zenodo.15098249},
   month = {3},
   title = {{h2r_franka_ROS2}},
-  url = {https://github.com/SaulBatman/h2r_franka_ROS2},
+  url = {https://github.com/mingxi-jia/h2r_franka_ROS2},
   version = {1.0.0},
   year = {2025}
 }
